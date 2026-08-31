@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>PW3 토요모임 출결부</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#f4f6f9;
+  --surface:#ffffff;
+  --surface2:#eef1f6;
+  --border:#dde3ec;
+  --text:#1d2433;
+  --muted:#68738a;
+  --accent:#33518f;
+  --accent-soft:#e3e9f6;
+  --on-accent:#ffffff;
+  --good:#25784a;
+  --good-soft:#e0f0e7;
+  --bad:#b0384a;
+  --bad-soft:#f8e4e7;
+  --warn:#96650f;
+  --warn-soft:#f6ecd9;
+  --shadow:0 1px 3px rgba(29,36,51,.08);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#12151c;
+    --surface:#1b202b;
+    --surface2:#232937;
+    --border:#333c4e;
+    --text:#e7eaf2;
+    --muted:#9aa4ba;
+    --accent:#93aae4;
+    --accent-soft:#2a3550;
+    --on-accent:#12151c;
+    --good:#66c08a;
+    --good-soft:#1e3a2b;
+    --bad:#e5808f;
+    --bad-soft:#452129;
+    --warn:#d8a94e;
+    --warn-soft:#403620;
+    --shadow:0 1px 3px rgba(0,0,0,.4);
+  }
+}
+*{box-sizing:border-box}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'IBM Plex Sans KR',-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+  margin:0;
+  line-height:1.55;
+}
+#app{max-width:960px;margin:0 auto;padding:24px 16px 80px}
+header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+h1{
+  font-family:'Gowun Batang','IBM Plex Sans KR',serif;
+  font-size:1.7rem;font-weight:700;margin:0;letter-spacing:-.01em;text-wrap:balance;
+}
+.subtitle{color:var(--muted);font-size:.85rem;margin:2px 0 18px}
+#saveStatus{font-size:.78rem;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:4px 12px;white-space:nowrap}
+#saveStatus.busy{color:var(--accent)}
+#saveStatus.err{color:var(--bad)}
+#banner{display:none;background:var(--warn-soft);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:.85rem;margin-bottom:14px}
+nav.tabs{display:flex;gap:6px;border-bottom:1px solid var(--border);margin-bottom:20px;overflow-x:auto}
+nav.tabs button{
+  appearance:none;background:none;border:none;border-bottom:2.5px solid transparent;
+  font:inherit;font-size:.92rem;font-weight:500;color:var(--muted);
+  padding:9px 13px;cursor:pointer;white-space:nowrap;
+}
+nav.tabs button:hover{color:var(--text)}
+nav.tabs button.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:700}
+nav.tabs button:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);padding:18px;margin-bottom:16px}
+.card h2{font-size:1.02rem;margin:0 0 12px;font-weight:700}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+input[type="date"],input[type="text"],input[type="time"],select{
+  font:inherit;font-size:.9rem;color:var(--text);background:var(--surface);
+  border:1px solid var(--border);border-radius:8px;padding:7px 10px;
+}
+input::placeholder{color:var(--muted)}
+button.btn{
+  appearance:none;font:inherit;font-size:.88rem;font-weight:600;cursor:pointer;
+  border:1px solid var(--border);border-radius:8px;padding:7px 14px;
+  background:var(--surface2);color:var(--text);
+}
+button.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+button.btn.danger{color:var(--bad)}
+button.btn.armed{background:var(--bad);border-color:var(--bad);color:var(--surface)}
+button.btn:disabled{opacity:.45;cursor:not-allowed}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 14px}
+.chip{
+  appearance:none;font:inherit;font-size:.85rem;font-weight:500;cursor:pointer;
+  border:1px solid var(--border);border-radius:999px;padding:5px 14px;
+  background:var(--surface);color:var(--text);
+}
+.chip.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:700}
+table{border-collapse:collapse;width:100%;font-size:.9rem;font-variant-numeric:tabular-nums}
+th{font-size:.78rem;color:var(--muted);font-weight:600;text-align:left;padding:7px 10px;border-bottom:1.5px solid var(--border);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+.tscroll{overflow-x:auto}
+.name{font-weight:600;white-space:nowrap}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.seg button{
+  appearance:none;font:inherit;font-size:.83rem;font-weight:600;cursor:pointer;
+  border:none;background:var(--surface);color:var(--muted);padding:6px 13px;white-space:nowrap;
+}
+.seg button + button{border-left:1px solid var(--border)}
+.seg button.p.on{background:var(--good-soft);color:var(--good)}
+.seg button.l.on{background:var(--warn-soft);color:var(--warn)}
+.seg button.a.on{background:var(--bad-soft);color:var(--bad)}
+.detail{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+input.reason{flex:1;min-width:140px}
+input.ltime{width:118px}
+.dot{display:inline-block;width:22px;text-align:center;font-weight:700}
+.dot.p{color:var(--good)}
+.dot.l{color:var(--warn)}
+.dot.a{color:var(--bad)}
+.dot.n{color:var(--muted);opacity:.5}
+.statgood{color:var(--good);font-weight:700}
+.statwarn{color:var(--warn);font-weight:700}
+.statbad{color:var(--bad);font-weight:700}
+.pill{display:inline-block;font-size:.74rem;font-weight:700;border-radius:999px;padding:2px 9px}
+.pill.todo{background:var(--bad-soft);color:var(--bad)}
+.pill.done{background:var(--good-soft);color:var(--good)}
+.pill.late{background:var(--warn-soft);color:var(--warn)}
+.pill.abs{background:var(--bad-soft);color:var(--bad)}
+.rlog{margin-top:16px;border-top:1px solid var(--border);padding-top:12px}
+.rlog h3{font-size:.88rem;margin:0 0 4px;font-weight:700}
+.rlog .rl-date{font-weight:700;font-size:.84rem;margin:10px 0 4px;color:var(--muted)}
+.rlog .rl-item{font-size:.88rem;padding:3px 0 3px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+tr.teamrow td{background:var(--surface2);color:var(--muted);font-size:.76rem;font-weight:700;padding:5px 10px;letter-spacing:.03em}
+.role{font-size:.72rem;color:var(--muted);font-weight:500;margin-left:5px}
+.empty{color:var(--muted);font-size:.88rem;padding:16px 4px;text-align:center}
+.hint{color:var(--muted);font-size:.78rem;margin-top:10px}
+.meethead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.meethead .mdate{font-family:'Gowun Batang',serif;font-weight:700;font-size:1.05rem}
+.mini{font-size:.78rem;color:var(--muted)}
+label.ck{display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-size:.85rem;font-weight:600}
+input[type="checkbox"]{width:17px;height:17px;accent-color:var(--accent);cursor:pointer}
+@media (max-width:560px){
+  #app{padding:16px 10px 60px}
+  .card{padding:14px 12px}
+  td,th{padding:7px 6px}
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header class="top">
+    <h1>PW3부 토요모임 출결부</h1>
+    <span id="saveStatus">불러오는 중…</span>
+  </header>
+  <p class="subtitle">서파3부 예배팀 · 격주 토요일 11:00–13:00</p>
+  <div id="banner"></div>
+  <nav class="tabs">
+    <button data-tab="check">출결 체크</button>
+    <button data-tab="summary">종합 현황</button>
+    <button data-tab="copy">로마서 필사</button>
+    <button data-tab="members">명단 관리</button>
+  </nav>
+  <main id="view"></main>
+</div>
+
+<script type="application/json" id="seed-state">
+{"members":[],"meetings":[],"updatedAt":0}
+</script>
+
+<script>
+(function(){
+"use strict";
+var API = 'https://script.google.com/macros/s/AKfycbyR8SLsBOI3udMaj_xtVyV5O-4WU7piBXkDSE1YjjBAynhCH3E-h6KOjYeTX5ZoUVSP/exec';
+var $ = function(s){ return document.querySelector(s); };
+var esc = function(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+function ss(k,v){ try{ if(v===undefined) return sessionStorage.getItem(k); sessionStorage.setItem(k,v); }catch(e){ return null; } }
+
+var state = {members:[],meetings:[]};
+try{ state = JSON.parse($('#seed-state').textContent); }catch(e){}
+
+var ready = false;
+var tab = ss('pw3-tab') || 'check';
+var selMeeting = ss('pw3-meeting') || null;
+
+var DAYS = ['일','월','화','수','목','금','토'];
+function dateLabel(d){
+  var p = d.split('-');
+  var dt = new Date(+p[0], +p[1]-1, +p[2]);
+  return p[0].slice(2)+'.'+p[1]+'.'+p[2]+' ('+DAYS[dt.getDay()]+')';
+}
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function findMeeting(id){ for(var i=0;i<state.meetings.length;i++) if(state.meetings[i].id===id) return state.meetings[i]; return null; }
+function rec(m, memberId){
+  if(!m.records) m.records = {};
+  if(!m.records[memberId]) m.records[memberId] = {s:null, reason:'', copied:false, lateTime:'', lateReason:''};
+  var r = m.records[memberId];
+  if(r.lateTime===undefined) r.lateTime='';
+  if(r.lateReason===undefined) r.lateReason='';
+  return r;
+}
+function meetingsAsc(){ return state.meetings.slice().sort(function(a,b){ return a.date<b.date?-1:1; }); }
+function meetingsDesc(){ return state.meetings.slice().sort(function(a,b){ return a.date<b.date?1:-1; }); }
+function lateLabel(r){
+  var parts = [];
+  if(r.lateTime) parts.push(r.lateTime+' 도착');
+  if(r.lateReason) parts.push(r.lateReason);
+  return parts.join(' · ');
+}
+
+/* ---------- save / sync ---------- */
+var saveTimer=null, saving=false, dirty=false, failCount=0;
+function setStatus(t, cls){
+  var el = $('#saveStatus'); el.textContent = t; el.className = cls||'';
+}
+function showBanner(html){ var b=$('#banner'); b.style.display='block'; b.innerHTML=html; }
+function hideBanner(){ $('#banner').style.display='none'; }
+function scheduleSave(){
+  state.updatedAt = Date.now();
+  try{ localStorage.setItem('pw3-backup', JSON.stringify(state)); }catch(e){}
+  dirty = true; setStatus('저장 대기…','busy');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(doSave, 1500);
+}
+function doSave(){
+  if(saving){ return; }
+  dirty=false; saving=true; setStatus('저장 중…','busy');
+  var json = JSON.stringify(state);
+  fetch(API, {method:'POST', body:json})
+    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(function(res){
+      if(!res || !res.ok) throw 0;
+      saving=false; failCount=0; hideBanner();
+      if(dirty){ doSave(); } else { setStatus('저장됨'); }
+    })
+    .catch(function(){
+      saving=false; dirty=true; failCount++;
+      if(failCount<=3){
+        setStatus('재시도 중…','busy');
+        setTimeout(doSave, 3000);
+      } else {
+        setStatus('저장 실패','err');
+        showBanner('저장에 실패했습니다. 인터넷 연결을 확인해 주세요. 연결이 돌아오면 자동으로 다시 저장됩니다.');
+        setTimeout(doSave, 15000);
+      }
+    });
+}
+function pullRemote(){
+  if(dirty || saving) return;
+  fetch(API, {cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(function(s){
+      if(s && s.members && (s.updatedAt||0) > (state.updatedAt||0) && !dirty && !saving){
+        state = s; render();
+      }
+    })
+    .catch(function(){});
+}
+
+/* ---------- mutations ---------- */
+var pendingDel = null, pendingTimer = null;
+function armDelete(key){
+  clearTimeout(pendingTimer);
+  pendingDel = key;
+  pendingTimer = setTimeout(function(){ pendingDel = null; render(); }, 4000);
+  render();
+}
+function disarmDelete(){
+  clearTimeout(pendingTimer);
+  pendingDel = null;
+}
+function addMeeting(date){
+  if(!date) return;
+  for(var i=0;i<state.meetings.length;i++) if(state.meetings[i].date===date){ selMeeting=state.meetings[i].id; render(); return; }
+  var m = {id:uid(), date:date, records:{}};
+  state.meetings.push(m); selMeeting = m.id;
+  scheduleSave(); render();
+}
+function delMeeting(id){
+  var m = findMeeting(id); if(!m) return;
+  if(pendingDel !== 'meet:'+id){ armDelete('meet:'+id); return; }
+  disarmDelete();
+  state.meetings = state.meetings.filter(function(x){ return x.id!==id; });
+  if(selMeeting===id) selMeeting = null;
+  scheduleSave(); render();
+}
+function setStatusFor(mid, memberId, s){
+  var m = findMeeting(mid); if(!m) return;
+  var r = rec(m, memberId);
+  r.s = (r.s===s) ? null : s;
+  if(r.s!=='a'){ r.reason=''; r.copied=false; }
+  if(r.s!=='l'){ r.lateTime=''; r.lateReason=''; }
+  scheduleSave(); render();
+}
+function addMember(name, team, role){
+  name = (name||'').trim(); if(!name) return;
+  state.members.push({id:uid(), name:name, team:(team||'').trim(), role:(role||'').trim()});
+  scheduleSave(); render();
+}
+function delMember(id){
+  var mb=null; for(var i=0;i<state.members.length;i++) if(state.members[i].id===id) mb=state.members[i];
+  if(!mb) return;
+  if(pendingDel !== 'mb:'+id){ armDelete('mb:'+id); return; }
+  disarmDelete();
+  state.members = state.members.filter(function(x){ return x.id!==id; });
+  state.meetings.forEach(function(m){ if(m.records) delete m.records[id]; });
+  scheduleSave(); render();
+}
+function toggleCopied(mid, memberId){
+  var m = findMeeting(mid); if(!m) return;
+  var r = rec(m, memberId);
+  r.copied = !r.copied;
+  scheduleSave(); render();
+}
+
+/* ---------- render ---------- */
+function render(){
+  document.querySelectorAll('nav.tabs button').forEach(function(b){
+    b.classList.toggle('on', b.dataset.tab===tab);
+  });
+  var v = $('#view');
+  if(tab==='check') v.innerHTML = renderCheck();
+  else if(tab==='summary') v.innerHTML = renderSummary();
+  else if(tab==='copy') v.innerHTML = renderCopy();
+  else v.innerHTML = renderMembers();
+  bindView();
+}
+
+function renderCheck(){
+  var h = '<div class="card"><h2>모임 날짜 추가</h2><div class="row">'
+    + '<input type="date" id="newDate">'
+    + '<button class="btn primary" id="btnAddDate">날짜 추가</button>'
+    + '</div></div>';
+  if(!state.meetings.length){
+    h += '<div class="card"><div class="empty">아직 등록된 모임이 없습니다. 위에서 토요모임 날짜를 추가해 주세요.</div></div>';
+    return h;
+  }
+  var list = meetingsDesc();
+  if(!selMeeting || !findMeeting(selMeeting)) selMeeting = list[0].id;
+  h += '<div class="chips">';
+  list.forEach(function(m){
+    h += '<button class="chip'+(m.id===selMeeting?' on':'')+'" data-sel="'+m.id+'">'+dateLabel(m.date)+'</button>';
+  });
+  h += '</div>';
+
+  var m = findMeeting(selMeeting);
+  var p=0,l=0,a=0,n=0;
+  state.members.forEach(function(mb){
+    var r = (m.records||{})[mb.id];
+    if(r && r.s==='p') p++;
+    else if(r && r.s==='l') l++;
+    else if(r && r.s==='a') a++;
+    else n++;
+  });
+  h += '<div class="card">';
+  h += '<div class="meethead"><span class="mdate">'+dateLabel(m.date)+' 토요모임</span>'
+    + '<span class="mini">참석 <span class="statgood">'+p+'</span> · 지각 <span class="statwarn">'+l+'</span> · 불참 <span class="statbad">'+a+'</span> · 미체크 '+n
+    + ' &nbsp;<button class="btn danger'+(pendingDel==='meet:'+m.id?' armed':'')+'" data-delmeet="'+m.id+'">'
+    + (pendingDel==='meet:'+m.id?'한 번 더 누르면 삭제':'날짜 삭제')+'</button></span></div>';
+  if(!state.members.length){
+    h += '<div class="empty">명단이 비어 있습니다. [명단 관리] 탭에서 팀원을 먼저 추가해 주세요.</div></div>';
+    return h;
+  }
+  h += '<div class="tscroll"><table><thead><tr><th>이름</th><th>출결</th><th>상세</th></tr></thead><tbody>';
+  var lastTeam = null;
+  state.members.forEach(function(mb){
+    if((mb.team||'') !== lastTeam){
+      lastTeam = mb.team||'';
+      h += '<tr class="teamrow"><td colspan="3">'+(esc(lastTeam)||'팀 미지정')+'</td></tr>';
+    }
+    var r = (m.records||{})[mb.id] || {s:null,reason:'',lateTime:'',lateReason:''};
+    h += '<tr><td class="name">'+esc(mb.name)+'<span class="role">'+esc(mb.role||'')+'</span></td><td>'
+      + '<span class="seg">'
+      + '<button class="p'+(r.s==='p'?' on':'')+'" data-att="p" data-mb="'+mb.id+'">참석</button>'
+      + '<button class="l'+(r.s==='l'?' on':'')+'" data-att="l" data-mb="'+mb.id+'">지각</button>'
+      + '<button class="a'+(r.s==='a'?' on':'')+'" data-att="a" data-mb="'+mb.id+'">불참</button>'
+      + '</span></td><td>';
+    if(r.s==='a'){
+      h += '<input class="reason" type="text" data-reason="'+mb.id+'" value="'+esc(r.reason)+'" placeholder="불참 사유 입력">';
+    } else if(r.s==='l'){
+      h += '<div class="detail">'
+        + '<input class="ltime" type="time" data-ltime="'+mb.id+'" value="'+esc(r.lateTime||'')+'" title="도착 시간">'
+        + '<input class="reason" type="text" data-lreason="'+mb.id+'" value="'+esc(r.lateReason||'')+'" placeholder="지각 사유 입력">'
+        + '</div>';
+    } else {
+      h += '<span class="mini">－</span>';
+    }
+    h += '</td></tr>';
+  });
+  h += '</tbody></table></div>';
+  h += '<p class="hint">불참을 누르면 사유 입력란이, 지각을 누르면 도착 시간과 사유 입력란이 나타납니다. 같은 버튼을 다시 누르면 해제되며, 불참은 자동으로 로마서 필사 명단에 올라갑니다.</p>';
+  h += '</div>';
+  return h;
+}
+
+function renderSummary(){
+  if(!state.members.length || !state.meetings.length){
+    return '<div class="card"><div class="empty">명단과 모임 날짜가 등록되면 여기에서 전체 출결 현황을 한눈에 볼 수 있습니다.</div></div>';
+  }
+  var ms = meetingsAsc();
+  var h = '<div class="card"><h2>종합 출결 현황</h2><div class="tscroll"><table><thead><tr><th>이름</th>';
+  ms.forEach(function(m){ h += '<th>'+dateLabel(m.date).slice(3)+'</th>'; });
+  h += '<th>참석</th><th>지각</th><th>불참</th><th>출석률</th></tr></thead><tbody>';
+  var lastTeam = null;
+  state.members.forEach(function(mb){
+    if((mb.team||'') !== lastTeam){
+      lastTeam = mb.team||'';
+      h += '<tr class="teamrow"><td colspan="'+(ms.length+5)+'">'+(esc(lastTeam)||'팀 미지정')+'</td></tr>';
+    }
+    var p=0,l=0,a=0;
+    h += '<tr><td class="name">'+esc(mb.name)+'<span class="role">'+esc(mb.role||'')+'</span></td>';
+    ms.forEach(function(m){
+      var r = (m.records||{})[mb.id];
+      if(r && r.s==='p'){ p++; h+='<td><span class="dot p">○</span></td>'; }
+      else if(r && r.s==='l'){ l++; h+='<td><span class="dot l" title="'+esc(lateLabel(r))+'">△</span></td>'; }
+      else if(r && r.s==='a'){ a++; h+='<td><span class="dot a" title="'+esc(r.reason)+'">×</span></td>'; }
+      else h+='<td><span class="dot n">·</span></td>';
+    });
+    var t = p+l+a;
+    var rate = t ? Math.round((p+l)/t*100)+'%' : '–';
+    h += '<td class="statgood">'+p+'</td><td class="statwarn">'+l+'</td><td class="statbad">'+a+'</td><td>'+rate+'</td></tr>';
+  });
+  h += '</tbody></table></div>';
+  h += '<p class="hint">○ 참석 · △ 지각 · × 불참. 지각은 출석률에 참석으로 계산되고, 미체크는 계산에서 제외됩니다.</p>';
+
+  var logs = [];
+  meetingsDesc().forEach(function(m){
+    var entries = [];
+    state.members.forEach(function(mb){
+      var r = (m.records||{})[mb.id];
+      if(r && (r.s==='a' || r.s==='l')) entries.push({mb:mb, r:r});
+    });
+    if(entries.length) logs.push({m:m, entries:entries});
+  });
+  if(logs.length){
+    h += '<div class="rlog"><h3>지각·불참 사유 기록</h3>';
+    logs.forEach(function(g){
+      h += '<div class="rl-date">'+dateLabel(g.m.date)+'</div>';
+      g.entries.forEach(function(e){
+        var r = e.r;
+        if(r.s==='l'){
+          var d = lateLabel(r);
+          h += '<div class="rl-item"><span class="name">'+esc(e.mb.name)+'</span>'
+            + '<span class="pill late">지각</span>'
+            + '<span>'+(d ? esc(d) : '<span class="mini">도착 시간·사유 미입력</span>')+'</span></div>';
+        } else {
+          h += '<div class="rl-item"><span class="name">'+esc(e.mb.name)+'</span>'
+            + '<span class="pill abs">불참</span>'
+            + '<span>'+(r.reason ? esc(r.reason) : '<span class="mini">사유 미입력</span>')+'</span></div>';
+        }
+      });
+    });
+    h += '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+function renderCopy(){
+  var items = [];
+  meetingsDesc().forEach(function(m){
+    state.members.forEach(function(mb){
+      var r = (m.records||{})[mb.id];
+      if(r && r.s==='a') items.push({m:m, mb:mb, r:r});
+    });
+  });
+  if(!items.length){
+    return '<div class="card"><div class="empty">불참 기록이 없습니다. 모임에서 불참으로 표시되면 자동으로 필사 명단에 추가됩니다.</div></div>';
+  }
+  var todo = items.filter(function(x){ return !x.r.copied; });
+  var done = items.filter(function(x){ return x.r.copied; });
+  function table(arr){
+    var h = '<div class="tscroll"><table><thead><tr><th>모임 날짜</th><th>이름</th><th>불참 사유</th><th>필사 여부</th></tr></thead><tbody>';
+    arr.forEach(function(x){
+      h += '<tr><td>'+dateLabel(x.m.date)+'</td><td class="name">'+esc(x.mb.name)+'<span class="role">'+esc(x.mb.team||'')+'</span></td>'
+        + '<td>'+(esc(x.r.reason)||'<span class="mini">－</span>')+'</td><td>'
+        + '<label class="ck"><input type="checkbox" data-copy-m="'+x.m.id+'" data-copy-mb="'+x.mb.id+'"'
+        + (x.r.copied?' checked':'')+'>'
+        + (x.r.copied?'<span class="pill done">작성 완료</span>':'<span class="pill todo">미작성</span>')
+        + '</label></td></tr>';
+    });
+    return h+'</tbody></table></div>';
+  }
+  var h = '<div class="card"><h2>로마서 필사 — 미작성 <span class="statbad">'+todo.length+'</span>건</h2>';
+  h += todo.length ? table(todo) : '<div class="empty">밀린 필사가 없습니다 🎉</div>';
+  h += '</div>';
+  if(done.length){
+    h += '<div class="card"><h2>작성 완료 <span class="statgood">'+done.length+'</span>건</h2>'+table(done)+'</div>';
+  }
+  return h;
+}
+
+function renderMembers(){
+  var teams = [];
+  state.members.forEach(function(mb){ if(mb.team && teams.indexOf(mb.team)<0) teams.push(mb.team); });
+  var h = '<div class="card"><h2>팀원 추가</h2><div class="row">'
+    + '<input type="text" id="newTeam" list="teamList" placeholder="팀" style="width:110px">'
+    + '<datalist id="teamList">'+teams.map(function(t){ return '<option value="'+esc(t)+'">'; }).join('')+'</datalist>'
+    + '<select id="newRole"><option>교사</option><option>헬퍼</option><option>학생</option></select>'
+    + '<input type="text" id="newName" placeholder="이름 입력 후 Enter">'
+    + '<button class="btn primary" id="btnAddName">추가</button>'
+    + '</div></div>';
+  h += '<div class="card"><h2>명단 <span class="mini">('+state.members.length+'명)</span></h2>';
+  if(!state.members.length){
+    h += '<div class="empty">등록된 팀원이 없습니다. 위에서 이름을 추가해 주세요.</div></div>';
+    return h;
+  }
+  h += '<div class="tscroll"><table><thead><tr><th>팀</th><th>구분</th><th>이름</th><th></th></tr></thead><tbody>';
+  state.members.forEach(function(mb){
+    h += '<tr><td>'+esc(mb.team||'')+'</td><td class="mini">'+esc(mb.role||'')+'</td><td class="name">'+esc(mb.name)+'</td>'
+      + '<td style="text-align:right"><button class="btn danger'+(pendingDel==='mb:'+mb.id?' armed':'')+'" data-delmb="'+mb.id+'">'
+      + (pendingDel==='mb:'+mb.id?'한 번 더 누르면 삭제':'삭제')+'</button></td></tr>';
+  });
+  h += '</tbody></table></div></div>';
+  return h;
+}
+
+function bindView(){
+  var v = $('#view');
+  var d = v.querySelector('#newDate');
+  if(d && !d.value){
+    var now = new Date();
+    d.value = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+  }
+  var ab = v.querySelector('#btnAddDate');
+  if(ab) ab.addEventListener('click', function(){ addMeeting(v.querySelector('#newDate').value); });
+  v.querySelectorAll('[data-sel]').forEach(function(b){
+    b.addEventListener('click', function(){ selMeeting=b.dataset.sel; ss('pw3-meeting',selMeeting); render(); });
+  });
+  v.querySelectorAll('[data-delmeet]').forEach(function(b){
+    b.addEventListener('click', function(){ delMeeting(b.dataset.delmeet); });
+  });
+  v.querySelectorAll('[data-att]').forEach(function(b){
+    b.addEventListener('click', function(){ setStatusFor(selMeeting, b.dataset.mb, b.dataset.att); });
+  });
+  v.querySelectorAll('[data-reason]').forEach(function(inp){
+    inp.addEventListener('input', function(){
+      var m = findMeeting(selMeeting); if(!m) return;
+      rec(m, inp.dataset.reason).reason = inp.value;
+      scheduleSave();
+    });
+  });
+  v.querySelectorAll('[data-ltime]').forEach(function(inp){
+    inp.addEventListener('input', function(){
+      var m = findMeeting(selMeeting); if(!m) return;
+      rec(m, inp.dataset.ltime).lateTime = inp.value;
+      scheduleSave();
+    });
+  });
+  v.querySelectorAll('[data-lreason]').forEach(function(inp){
+    inp.addEventListener('input', function(){
+      var m = findMeeting(selMeeting); if(!m) return;
+      rec(m, inp.dataset.lreason).lateReason = inp.value;
+      scheduleSave();
+    });
+  });
+  var nn = v.querySelector('#newName');
+  var nb = v.querySelector('#btnAddName');
+  var doAdd = function(){
+    addMember(nn.value, v.querySelector('#newTeam').value, v.querySelector('#newRole').value);
+  };
+  if(nb) nb.addEventListener('click', doAdd);
+  if(nn) nn.addEventListener('keydown', function(e){ if(e.key==='Enter'){ doAdd(); } });
+  v.querySelectorAll('[data-delmb]').forEach(function(b){
+    b.addEventListener('click', function(){ delMember(b.dataset.delmb); });
+  });
+  v.querySelectorAll('[data-copy-m]').forEach(function(c){
+    c.addEventListener('change', function(){ toggleCopied(c.dataset.copyM, c.dataset.copyMb); });
+  });
+}
+
+document.querySelectorAll('nav.tabs button').forEach(function(b){
+  b.addEventListener('click', function(){ tab=b.dataset.tab; ss('pw3-tab',tab); render(); });
+});
+
+/* ---------- init ---------- */
+render();
+fetch(API, {cache:'no-store'})
+  .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+  .then(function(s){
+    if(s && s.members){ state = s; }
+    ready = true; setStatus('저장됨'); render();
+  })
+  .catch(function(){
+    ready = true;
+    try{
+      var b = localStorage.getItem('pw3-backup');
+      if(b){
+        var bs = JSON.parse(b);
+        if(bs && bs.members && (bs.updatedAt||0) > (state.updatedAt||0)){ state = bs; }
+      }
+    }catch(e){}
+    setStatus('오프라인','err');
+    showBanner('서버에서 최신 데이터를 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 새로고침해 주세요. 지금 입력하는 내용은 연결이 돌아오면 자동 저장됩니다.');
+    render();
+  });
+setInterval(pullRemote, 60000);
+window.addEventListener('focus', pullRemote);
+})();
+</script>
+
+</body>
+</html>
