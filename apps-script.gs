@@ -119,6 +119,18 @@ function upload_(e) {
   }
 }
 
+/* ===== 최초 1회만 실행 =====
+   편집기 상단 함수 목록에서 setupDrive 를 고르고 [실행]을 누르면
+   드라이브 접근 권한 승인 창이 뜬다. 승인하면 폴더가 만들어지고 업로드가 동작한다. */
+function setupDrive() {
+  var root = rootFolder_();
+  subFolder_('콘티 악보');
+  subFolder_('큐시트');
+  subFolder_('곡별 악보');
+  Logger.log('준비 완료 — ' + root.getName() + ' (' + root.getUrl() + ')');
+  return root.getUrl();
+}
+
 function rootFolder_() {
   var props = PropertiesService.getScriptProperties();
   var id = props.getProperty('FOLDER_ID');
