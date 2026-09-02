@@ -25,9 +25,9 @@ function readAll_() {
   return json || '{}';
 }
 
-/* 개인정보와 파일 링크를 제거한 공개용 데이터.
-   공개: 모임 날짜, 공지, 행사, 콘티 곡 목록·유튜브 링크
-   비공개: 명단·출결·사유, 악보/큐시트 PDF 링크, 자료실 목록 */
+/* 개인정보만 제거한 공개용 데이터.
+   공개: 모임 날짜, 공지, 행사, 콘티 전체(곡·유튜브·악보·큐시트 링크), 자료실 전체
+   비공개: 명단(members), 출결 기록·사유(meetings[].records) */
 function publicView_(json) {
   var s;
   try { s = JSON.parse(json); } catch (err) {
@@ -37,26 +37,13 @@ function publicView_(json) {
   var ms = s.meetings || [];
   for (var i = 0; i < ms.length; i++) meetings.push({ id: ms[i].id, date: ms[i].date });
 
-  var setlists = [];
-  var sl = s.setlists || [];
-  for (var j = 0; j < sl.length; j++) {
-    setlists.push({
-      id: sl[j].id,
-      date: sl[j].date,
-      songs: sl[j].songs || [],
-      scoreUrl: '',
-      cueUrl: '',
-      hasScore: !!sl[j].scoreUrl,
-      hasCue: !!sl[j].cueUrl
-    });
-  }
   return {
     redacted: true,
     meetings: meetings,
-    setlists: setlists,
+    setlists: s.setlists || [],
     notice: s.notice || { text: '', at: 0 },
     events: s.events || [],
-    resources: [],
+    resources: s.resources || [],
     updatedAt: s.updatedAt || 0
   };
 }
