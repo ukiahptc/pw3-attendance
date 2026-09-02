@@ -159,11 +159,11 @@ input[type="checkbox"]{width:17px;height:17px;accent-color:var(--accent);cursor:
   .wm{font-size:1.8rem}
 }
 #gate{position:fixed;inset:0;background:var(--bg);z-index:99;overflow:auto;padding:36px 16px}
-#gate .lock{max-width:340px;margin:0 auto;text-align:center}
+#gate .lock{max-width:340px;margin:24px auto;text-align:center;background:var(--surface);border-radius:20px;padding:28px 22px;box-shadow:var(--shadow)}
 #gate .lock .ico{font-size:2.2rem}
 #gate .lock p{color:var(--muted);font-size:.86rem;margin:8px 0 18px}
 #gate .lock .err{color:var(--bad);font-size:.82rem;font-weight:700;min-height:20px;margin-top:10px}
-#gate input{font:inherit;font-size:.9rem;color:var(--text);background:var(--surface2);border:1px solid transparent;border-radius:12px;padding:10px 12px;width:100%}
+#gate input{font:inherit;font-size:.9rem;color:var(--text);background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:11px 12px;width:100%;text-align:center;letter-spacing:.2em}
 #gate input:focus{outline:none;border-color:var(--accent)}
 #gate button{appearance:none;font:inherit;font-size:.88rem;font-weight:700;cursor:pointer;border:none;border-radius:12px;padding:10px 16px;background:var(--accent);color:var(--on-accent);width:100%;margin-top:10px}
 </style>
@@ -204,7 +204,7 @@ input[type="checkbox"]{width:17px;height:17px;accent-color:var(--accent);cursor:
     '<input type="password" inputmode="numeric" id="pinInput" placeholder="PIN" autocomplete="off">'+
     '<div class="err" id="pinErr"></div>'+
     '<button id="pinGo">확인</button>'+
-    '<button id="pinBack" style="background:var(--surface2);color:var(--muted)">홈으로</button>'+
+    '<button id="pinBack" style="background:none;color:var(--muted);font-size:.82rem">홈으로</button>'+
   '</div>';
   var inp = document.getElementById("pinInput");
   function go(){
