@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>콘티 · PW3 예배팀</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💙</text></svg>">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <h1>
+      <a href="index.html" class="wm" style="text-decoration:none"><span class="lp">P</span><span class="lw">W</span><span class="l3">3</span><span class="spark">✦</span></a>
+      콘티
+    </h1>
+    <span id="saveStatus">불러오는 중…</span>
+  </header>
+  <p class="subtitle">주차별 찬양 목록과 악보·큐시트</p>
+  <div id="nav"></div>
+
+  <section class="card">
+    <h2>콘티 등록 <span class="sub">등록·수정은 리더십 PIN</span></h2>
+    <div id="form"></div>
+  </section>
+
+  <div id="list"><div class="card"><div class="empty">불러오는 중…</div></div></div>
+</div>
+
+<script src="assets/site.js"></script>
+<script>
+(function(){
+"use strict";
+var $ = function(s){ return document.querySelector(s); };
+var esc = PW3.esc;
+var state = PW3.normalize(null);
+var unlocked = PW3.hasPin();
+var editId = null;   /* 수정 중인 콘티 id */
+
+$('#nav').innerHTML = PW3.navHTML('setlist');
+function setStatus(t, cls){ var el=$('#saveStatus'); el.textContent=t; el.className=cls||''; }
+function save(){
+  setStatus('저장 중…','busy');
+  PW3.saveSection({setlists:state.setlists}, function(err){
+    setStatus(err ? '저장 실패' : '저장됨', err ? 'err' : '');
+  });
+}
+function ytLabel(u){ return /youtu/i.test(u) ? '유튜브' : '링크'; }
+
+/* ---------- 등록 폼 ---------- */
+var formData = null;   /* {date, songs:[{title,url}], scoreUrl, cueUrl} */
+
+function blankForm(){
+  return { date: PW3.todayISO(),
+           songs: [{title:'',url:''},{title:'',url:''},{title:'',url:''},{title:'',url:''}],
+           scoreUrl:'', cueUrl:'' };
+}
+function loadForm(s){
+  formData = { date: s.date,
+               songs: (s.songs||[]).map(function(x){ return {title:x.title, url:x.url}; }),
+               scoreUrl: s.scoreUrl||'', cueUrl: s.cueUrl||'' };
+  if(!formData.songs.length) formData.songs = blankForm().songs;
+}
+/* 화면에 입력된 값을 formData로 회수 */
+function collect(){
+  if(!$('#sDate')) return formData;
+  var t = document.querySelectorAll('.sTitle'), u = document.querySelectorAll('.sUrl'), songs = [];
+  for(var i=0;i<t.length;i++) songs.push({ title:t[i].value.trim(), url:PW3.safeURL(u[i].value) });
+  return { date: $('#sDate').value, songs: songs,
+           scoreUrl: PW3.safeURL($('#sScore').value), cueUrl: PW3.safeURL($('#sCue').value) };
+}
+function syncForm(){ formData = collect(); }
+
+function renderForm(){
+  var box = $('#form');
+  if(!unlocked){
+    box.innerHTML = '<button id="unlock">콘티 등록하기 (PIN)</button>';
+    $('#unlock').addEventListener('click', function(){
+      PW3.inlinePin(box, function(){ unlocked = true; renderForm(); renderList(); },
+                         function(){ renderForm(); });
+    });
+    return;
+  }
+  if(!formData) formData = blankForm();
+
+  var h = '<div class="row" style="margin-bottom:12px">'+
+            '<input type="date" id="sDate" style="max-width:180px" value="'+esc(formData.date)+'">'+
+            (editId ? '<span style="color:var(--accent);font-size:.82rem;font-weight:700">수정 중</span>' : '')+
+          '</div>';
+  for(var i=0;i<formData.songs.length;i++){
+    h += '<div class="songrow">'+
+           '<span class="n">'+(i+1)+'</span>'+
+           '<input type="text" class="sTitle" placeholder="곡 제목" style="flex:2;min-width:110px" value="'+esc(formData.songs[i].title)+'">'+
+           '<input type="url" class="sUrl" placeholder="유튜브 링크" style="flex:3;min-width:130px" value="'+esc(formData.songs[i].url)+'">'+
+         '</div>';
+  }
+  h += '<div class="row" style="margin:4px 0 14px">'+
+         '<button class="ghost" id="addRow">＋ 곡 추가</button>'+
+         (formData.songs.length > 1 ? '<button class="ghost" id="delRow">－ 마지막 줄 삭제</button>' : '')+
+       '</div>'+
+       '<div class="row">'+
+         '<input type="url" id="sScore" class="grow" placeholder="콘티 악보 PDF 링크" value="'+esc(formData.scoreUrl)+'">'+
+         '<input type="url" id="sCue" class="grow" placeholder="큐시트 PDF 링크" value="'+esc(formData.cueUrl)+'">'+
+       '</div>'+
+       '<div class="row" style="margin-top:12px">'+
+         '<button class="primary" id="sGo">'+(editId ? '수정 저장' : '콘티 등록')+'</button>'+
+         (editId ? '<button class="ghost" id="sCancel">취소</button>' : '')+
+       '</div>';
+  box.innerHTML = h;
+
+  $('#addRow').addEventListener('click', function(){
+    syncForm(); formData.songs.push({title:'',url:''}); renderForm();
+  });
+  if($('#delRow')) $('#delRow').addEventListener('click', function(){
+    syncForm(); formData.songs.pop(); renderForm();
+  });
+  $('#sGo').addEventListener('click', submit);
+  if($('#sCancel')) $('#sCancel').addEventListener('click', function(){
+    editId = null; formData = blankForm(); renderForm(); renderList();
+  });
+}
+
+function submit(){
+  syncForm();
+  var songs = formData.songs.filter(function(x){ return x.title; });
+  if(!formData.date || !songs.length){ setStatus('날짜·곡 제목 확인','err'); return; }
+  if(editId){
+    var cur = find(editId);
+    if(cur){
+      cur.date = formData.date; cur.songs = songs;
+      cur.scoreUrl = formData.scoreUrl; cur.cueUrl = formData.cueUrl;
+    }
+    editId = null;
+  } else {
+    state.setlists.push({
+      id: PW3.uid(), date: formData.date, songs: songs,
+      scoreUrl: formData.scoreUrl, cueUrl: formData.cueUrl, at: Date.now()
+    });
+  }
+  formData = blankForm();
+  renderForm(); renderList(); save();
+}
+function find(id){
+  for(var i=0;i<state.setlists.length;i++) if(state.setlists[i].id===id) return state.setlists[i];
+  return null;
+}
+
+/* ---------- 목록 ---------- */
+var pendingDel = null, delTimer = null;
+function renderList(){
+  var wrap = $('#list');
+  if(!state.setlists.length){
+    wrap.innerHTML = '<div class="card"><div class="empty">등록된 콘티가 없습니다.</div></div>';
+    return;
+  }
+  var ls = state.setlists.slice().sort(function(a,b){ return a.date < b.date ? 1 : -1; });
+  wrap.innerHTML = ls.map(function(s){ return card(s); }).join('');
+  Array.prototype.forEach.call(wrap.querySelectorAll('[data-edit]'), function(b){
+    b.addEventListener('click', function(){
+      editId = b.dataset.edit;
+      loadForm(find(editId));
+      renderForm(); renderList();
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
+  });
+  Array.prototype.forEach.call(wrap.querySelectorAll('[data-del]'), function(b){
+    b.addEventListener('click', function(){
+      var id = b.dataset.del;
+      if(pendingDel === id){
+        clearTimeout(delTimer); pendingDel = null;
+        state.setlists = state.setlists.filter(function(x){ return x.id !== id; });
+        if(editId === id){ editId = null; formData = blankForm(); renderForm(); }
+        renderList(); save();
+      } else {
+        pendingDel = id; renderList();
+        clearTimeout(delTimer);
+        delTimer = setTimeout(function(){ pendingDel = null; renderList(); }, 4000);
+      }
+    });
+  });
+}
+function card(s){
+  var songs = (s.songs || []).map(function(sg, i){
+    return '<li><span class="no">'+(i+1)+'</span>'+
+             '<span class="ti">'+esc(sg.title)+'</span>'+
+             (sg.url ? '<a class="yt" href="'+esc(sg.url)+'" target="_blank" rel="noopener noreferrer">▶ '+ytLabel(sg.url)+'</a>' : '')+
+           '</li>';
+  }).join('');
+  var files =
+    (s.scoreUrl ? '<a class="filebtn" href="'+esc(s.scoreUrl)+'" target="_blank" rel="noopener noreferrer">콘티 악보 PDF</a>'
+                : '<span class="filebtn off">악보 미등록</span>')+
+    (s.cueUrl ? '<a class="filebtn" href="'+esc(s.cueUrl)+'" target="_blank" rel="noopener noreferrer">큐시트 PDF</a>'
+              : '<span class="filebtn off">큐시트 미등록</span>');
+  return '<section class="setcard">'+
+    '<div class="head">'+
+      '<span class="d">'+esc(PW3.dateLabel(s.date))+' 콘티</span>'+
+      (unlocked ? '<span class="row">'+
+        '<button data-edit="'+s.id+'">수정</button>'+
+        '<button class="danger" data-del="'+s.id+'">'+(pendingDel===s.id?'한 번 더':'삭제')+'</button>'+
+      '</span>' : '')+
+    '</div>'+
+    '<ul class="songs">'+songs+'</ul>'+
+    '<div class="filebtns">'+files+'</div>'+
+  '</section>';
+}
+
+PW3.load(function(err, s){
+  state = s;
+  setStatus(err ? '오프라인' : '저장됨', err ? 'err' : '');
+  renderForm(); renderList();
+});
+})();
+</script>
+</body>
+</html>

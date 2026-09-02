@@ -27,6 +27,11 @@
     <div class="empty">불러오는 중…</div>
   </section>
 
+  <section class="card" id="setCard">
+    <h2>금주 콘티</h2>
+    <div class="empty">불러오는 중…</div>
+  </section>
+
   <section class="card">
     <h2>공지 <span class="sub">수정은 리더십 PIN</span></h2>
     <div id="noticeView"><div class="empty">불러오는 중…</div></div>
@@ -34,6 +39,7 @@
   </section>
 
   <div class="menugrid">
+    <a href="setlist.html"><div class="t">콘티</div><div class="d">주차별 찬양·악보</div></a>
     <a href="schedule.html"><div class="t">일정</div><div class="d">모임·행사 일정 보기</div></a>
     <a href="attendance.html"><div class="t">출결부</div><div class="d">토요모임 출결 체크</div></a>
     <a href="resources.html"><div class="t">자료실</div><div class="d">콘티·악보·링크 모음</div></a>
@@ -87,6 +93,29 @@ function renderCtl(){
   }
 }
 
+function renderSetlist(){
+  var c = $('#setCard');
+  var sl = PW3.currentByDate(state.setlists);
+  if(!sl){
+    c.innerHTML = '<h2>금주 콘티</h2><div class="empty">등록된 콘티가 없습니다. '+
+                  '<a href="setlist.html" style="color:var(--accent);font-weight:700">콘티 등록하기</a></div>';
+    return;
+  }
+  var songs = (sl.songs || []).map(function(sg, i){
+    return '<li><span class="no">'+(i+1)+'</span>'+
+             '<span class="ti">'+esc(sg.title)+'</span>'+
+             (sg.url ? '<a class="yt" href="'+esc(sg.url)+'" target="_blank" rel="noopener noreferrer">▶ 유튜브</a>' : '')+
+           '</li>';
+  }).join('');
+  var files =
+    (sl.scoreUrl ? '<a class="filebtn" href="'+esc(sl.scoreUrl)+'" target="_blank" rel="noopener noreferrer">콘티 악보 PDF</a>' : '')+
+    (sl.cueUrl ? '<a class="filebtn" href="'+esc(sl.cueUrl)+'" target="_blank" rel="noopener noreferrer">큐시트 PDF</a>' : '')+
+    '<a class="filebtn off" href="setlist.html">지난 콘티 보기</a>';
+  c.innerHTML = '<h2>금주 콘티 <span class="sub">'+esc(PW3.dateLabel(sl.date))+'</span></h2>'+
+                '<ul class="songs">'+songs+'</ul>'+
+                '<div class="filebtns">'+files+'</div>';
+}
+
 function renderNotice(){
   var v = $('#noticeView');
   if(editing){
@@ -122,7 +151,7 @@ function doSave(){
 PW3.load(function(err, s){
   state = s;
   setStatus(err ? '오프라인' : '저장됨', err ? 'err' : '');
-  renderNext(); renderNotice(); renderCtl();
+  renderNext(); renderSetlist(); renderNotice(); renderCtl();
 });
 })();
 </script>

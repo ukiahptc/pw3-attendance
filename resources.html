@@ -14,20 +14,26 @@
 <div id="app">
   <header class="top">
     <h1>
-      <a href="index.html" class="wm"><span class="lp">P</span><span class="lw">W</span><span class="l3">3</span><span class="spark">✦</span></a>
+      <a href="index.html" class="wm" style="text-decoration:none"><span class="lp">P</span><span class="lw">W</span><span class="l3">3</span><span class="spark">✦</span></a>
       자료실
     </h1>
     <span id="saveStatus">불러오는 중…</span>
   </header>
-  <p class="subtitle">콘티·악보·링크 모음 · 파일은 구글드라이브 링크로 등록</p>
+  <p class="subtitle">콘티 악보와 큐시트는 콘티 등록 시 자동으로 여기 모입니다</p>
   <div id="nav"></div>
+
+  <section class="card">
+    <div class="row">
+      <input type="text" id="q" class="grow" placeholder="곡명·자료명 검색">
+    </div>
+  </section>
+
+  <div id="out"><div class="card"><div class="empty">불러오는 중…</div></div></div>
 
   <section class="card">
     <h2>자료 등록 <span class="sub">등록·삭제는 리더십 PIN</span></h2>
     <div id="resAdd"></div>
   </section>
-
-  <div id="resList"><div class="card"><div class="empty">불러오는 중…</div></div></div>
 </div>
 
 <script src="assets/site.js"></script>
@@ -36,9 +42,10 @@
 "use strict";
 var $ = function(s){ return document.querySelector(s); };
 var esc = PW3.esc;
-var CATS = ['콘티','악보','음원','기타'];
+var CATS = ['곡별 악보','음원','기타'];
 var state = PW3.normalize(null);
 var unlocked = PW3.hasPin();
+var query = '';
 
 $('#nav').innerHTML = PW3.navHTML('resources');
 function setStatus(t, cls){ var el=$('#saveStatus'); el.textContent=t; el.className=cls||''; }
@@ -48,26 +55,23 @@ function save(){
     setStatus(err ? '저장 실패' : '저장됨', err ? 'err' : '');
   });
 }
-function safeURL(u){
-  u = String(u||'').trim();
-  if(!u) return '';
-  if(!/^https?:\/\//i.test(u)) u = 'https://' + u;
-  return /^https?:\/\//i.test(u) ? u : '';
-}
+function hit(text){ return !query || String(text||'').toLowerCase().indexOf(query) >= 0; }
 
+/* ---------- 등록 ---------- */
 function renderAdd(){
   var box = $('#resAdd');
   if(!unlocked){
     box.innerHTML = '<button id="unlock">자료 등록하기 (PIN)</button>';
     $('#unlock').addEventListener('click', function(){
-      PW3.inlinePin(box, function(){ unlocked = true; renderAdd(); renderList(); }, function(){ renderAdd(); });
+      PW3.inlinePin(box, function(){ unlocked = true; renderAdd(); renderAll(); },
+                         function(){ renderAdd(); });
     });
     return;
   }
   box.innerHTML =
     '<div class="row">'+
-      '<select id="rCat" style="max-width:120px">'+CATS.map(function(c){ return '<option>'+c+'</option>'; }).join('')+'</select>'+
-      '<input type="text" id="rTitle" class="grow" placeholder="자료명">'+
+      '<select id="rCat" style="max-width:130px">'+CATS.map(function(c){ return '<option>'+c+'</option>'; }).join('')+'</select>'+
+      '<input type="text" id="rTitle" class="grow" placeholder="곡명 또는 자료명">'+
     '</div>'+
     '<div class="row" style="margin-top:8px">'+
       '<input type="url" id="rUrl" class="grow" placeholder="링크 (구글드라이브·유튜브 등)">'+
@@ -75,62 +79,88 @@ function renderAdd(){
       '<button class="primary" id="rGo">등록</button>'+
     '</div>';
   $('#rGo').addEventListener('click', function(){
-    var t = $('#rTitle').value.trim(), u = safeURL($('#rUrl').value);
+    var t = $('#rTitle').value.trim(), u = PW3.safeURL($('#rUrl').value);
     if(!t || !u){ setStatus('자료명·링크 확인','err'); return; }
     state.resources.push({
       id: PW3.uid(), cat:$('#rCat').value, title:t, url:u,
       memo:$('#rMemo').value.trim(), at:Date.now()
     });
     $('#rTitle').value=''; $('#rUrl').value=''; $('#rMemo').value='';
-    renderList(); save();
+    renderAll(); save();
   });
 }
 
+/* ---------- 목록 ---------- */
 var pendingDel = null, delTimer = null;
-function renderList(){
-  var wrap = $('#resList');
-  if(!state.resources.length){
-    wrap.innerHTML = '<div class="card"><div class="empty">등록된 자료가 없습니다.</div></div>';
-    return;
-  }
+
+function itemHTML(title, url, meta, delId){
+  return '<div class="item"><div>'+
+      '<div class="t">'+esc(title)+'</div>'+
+      '<div class="m"><a href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">링크 열기</a>'+
+        (meta ? ' · '+esc(meta) : '')+'</div>'+
+    '</div>'+
+    (delId && unlocked ? '<button class="danger" data-del="'+delId+'">'+(pendingDel===delId?'한 번 더':'삭제')+'</button>' : '')+
+  '</div>';
+}
+function section(title, count, inner, note){
+  return '<section class="card"><h2>'+esc(title)+' <span class="sub">'+count+'건</span></h2>'+
+         (note ? '<div class="empty" style="padding:0 2px 10px">'+esc(note)+'</div>' : '')+
+         '<div class="list">'+inner+'</div></section>';
+}
+
+function renderAll(){
   var html = '';
+  var sets = state.setlists.slice().sort(function(a,b){ return a.date < b.date ? 1 : -1; });
+
+  /* 1. 콘티 악보 — 콘티에서 자동 수집 */
+  var scores = sets.filter(function(s){ return s.scoreUrl && hit(PW3.dateLabel(s.date)+' '+(s.songs||[]).map(function(x){return x.title;}).join(' ')); });
+  html += section('콘티 악보', scores.length,
+    scores.length ? scores.map(function(s){
+      return itemHTML(PW3.dateLabel(s.date)+' 콘티 악보', s.scoreUrl,
+        (s.songs||[]).map(function(x){ return x.title; }).join(' · '), null);
+    }).join('') : '<div class="empty">등록된 악보가 없습니다.</div>',
+    '콘티 페이지에서 등록하면 여기에 모입니다.');
+
+  /* 2. 큐시트 */
+  var cues = sets.filter(function(s){ return s.cueUrl && hit(PW3.dateLabel(s.date)); });
+  html += section('큐시트', cues.length,
+    cues.length ? cues.map(function(s){
+      return itemHTML(PW3.dateLabel(s.date)+' 큐시트', s.cueUrl, '', null);
+    }).join('') : '<div class="empty">등록된 큐시트가 없습니다.</div>');
+
+  /* 3. 분류별 수동 등록 자료 */
   CATS.forEach(function(cat){
-    var items = state.resources.filter(function(r){ return (r.cat||'기타') === cat; })
-                               .sort(function(a,b){ return (b.at||0) - (a.at||0); });
-    if(!items.length) return;
-    html += '<section class="card"><h2>'+esc(cat)+' <span class="sub">'+items.length+'건</span></h2><div class="list">';
-    html += items.map(function(r){
-      return '<div class="item"><div>'+
-          '<div class="t">'+esc(r.title)+'</div>'+
-          '<div class="m"><a href="'+esc(r.url)+'" target="_blank" rel="noopener noreferrer">링크 열기</a>'+
-            (r.memo ? ' · '+esc(r.memo) : '')+'</div>'+
-        '</div>'+
-        (unlocked ? '<button class="danger" data-del="'+r.id+'">'+(pendingDel===r.id?'한 번 더':'삭제')+'</button>' : '')+
-      '</div>';
-    }).join('');
-    html += '</div></section>';
+    var items = state.resources
+      .filter(function(r){ return (r.cat||'기타') === cat && hit(r.title + ' ' + (r.memo||'')); })
+      .sort(function(a,b){ return (b.at||0) - (a.at||0); });
+    html += section(cat, items.length,
+      items.length ? items.map(function(r){ return itemHTML(r.title, r.url, r.memo, r.id); }).join('')
+                   : '<div class="empty">'+(query ? '검색 결과가 없습니다.' : '등록된 자료가 없습니다.')+'</div>');
   });
-  wrap.innerHTML = html;
-  Array.prototype.forEach.call(wrap.querySelectorAll('[data-del]'), function(b){
+
+  $('#out').innerHTML = html;
+  Array.prototype.forEach.call($('#out').querySelectorAll('[data-del]'), function(b){
     b.addEventListener('click', function(){
       var id = b.dataset.del;
       if(pendingDel === id){
         clearTimeout(delTimer); pendingDel = null;
         state.resources = state.resources.filter(function(x){ return x.id !== id; });
-        renderList(); save();
+        renderAll(); save();
       } else {
-        pendingDel = id; renderList();
+        pendingDel = id; renderAll();
         clearTimeout(delTimer);
-        delTimer = setTimeout(function(){ pendingDel = null; renderList(); }, 4000);
+        delTimer = setTimeout(function(){ pendingDel = null; renderAll(); }, 4000);
       }
     });
   });
 }
 
+$('#q').addEventListener('input', function(){ query = this.value.trim().toLowerCase(); renderAll(); });
+
 PW3.load(function(err, s){
   state = s;
   setStatus(err ? '오프라인' : '저장됨', err ? 'err' : '');
-  renderAdd(); renderList();
+  renderAdd(); renderAll();
 });
 })();
 </script>

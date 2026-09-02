@@ -109,3 +109,20 @@ textarea{min-height:96px;resize:vertical;line-height:1.6}
   .wm{font-size:1.8rem}
   .menugrid{grid-template-columns:1fr}
 }
+
+/* 콘티 */
+.songs{list-style:none;padding:0;margin:0}
+.songs li{display:flex;gap:10px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--line)}
+.songs li:last-child{border-bottom:none}
+.songs .no{font-weight:800;color:var(--accent);min-width:16px}
+.songs .ti{font-weight:700;flex:1;min-width:0}
+.songs .yt{font-size:.78rem;font-weight:800;color:#e0322c;text-decoration:none;white-space:nowrap}
+@media (prefers-color-scheme: dark){ .songs .yt{color:#ff6b60} }
+.filebtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.filebtn{display:inline-block;text-decoration:none;font-size:.84rem;font-weight:700;padding:9px 14px;border-radius:12px;background:var(--accent-soft);color:var(--accent)}
+.filebtn.off{background:var(--surface2);color:var(--muted)}
+.songrow{display:flex;gap:8px;margin-bottom:8px;align-items:center}
+.songrow .n{font-weight:800;color:var(--muted);min-width:16px;font-size:.9rem}
+.setcard{background:var(--surface);border-radius:20px;padding:20px 18px;box-shadow:var(--shadow);margin-bottom:16px}
+.setcard .head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.setcard .head .d{font-weight:800;font-size:1.05rem;letter-spacing:-.01em}

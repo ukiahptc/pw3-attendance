@@ -25,6 +25,20 @@ function dateLabel(iso){
   var dt = new Date(+p[0], +p[1]-1, +p[2]);
   return p[0].slice(2)+'.'+p[1]+'.'+p[2]+' ('+DAYS[dt.getDay()]+')';
 }
+function safeURL(u){
+  u = String(u||'').trim();
+  if(!u) return '';
+  if(!/^https?:\/\//i.test(u)) u = 'https://' + u;
+  return /^https?:\/\//i.test(u) ? u : '';
+}
+/* 오늘 이후 가장 가까운 항목, 없으면 가장 최근 지난 항목 */
+function currentByDate(list){
+  if(!list || !list.length) return null;
+  var today = todayISO();
+  var sorted = list.slice().sort(function(a,b){ return a.date < b.date ? -1 : 1; });
+  for(var i=0;i<sorted.length;i++) if(sorted[i].date >= today) return sorted[i];
+  return sorted[sorted.length-1];
+}
 function daysUntil(iso){
   var p = String(iso).split('-');
   var t = new Date(+p[0], +p[1]-1, +p[2]).setHours(0,0,0,0);
@@ -90,6 +104,7 @@ function normalize(s){
   if(!s.notice)    s.notice = {text:'', at:0};
   if(!s.events)    s.events = [];
   if(!s.resources) s.resources = [];
+  if(!s.setlists)  s.setlists = [];
   return s;
 }
 function load(cb){
@@ -130,6 +145,7 @@ function saveSection(patch, cb){
 /* ---------- 상단 메뉴 ---------- */
 var MENU = [
   {href:'index.html',      key:'home',       label:'홈'},
+  {href:'setlist.html',    key:'setlist',    label:'콘티'},
   {href:'schedule.html',   key:'schedule',   label:'일정'},
   {href:'attendance.html', key:'attendance', label:'출결부'},
   {href:'resources.html',  key:'resources',  label:'자료실'}
@@ -145,7 +161,7 @@ function navHTML(active){
 
 return {
   API:API, apiURL:apiURL, esc:esc, uid:uid, todayISO:todayISO, dateLabel:dateLabel, daysUntil:daysUntil,
-  navHTML:navHTML, load:load, saveSection:saveSection, normalize:normalize,
+  navHTML:navHTML, load:load, safeURL:safeURL, currentByDate:currentByDate, saveSection:saveSection, normalize:normalize,
   getPin:getPin, setPin:setPin, clearPin:clearPin, hasPin:hasPin, verifyPin:verifyPin, inlinePin:inlinePin
 };
 })();
