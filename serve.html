@@ -8,7 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💙</text></svg>">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
-<link rel="stylesheet" href="assets/site.css?v=20260902i">
+<link rel="stylesheet" href="assets/site.css?v=20260902j">
 <style>
 .tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 table.serve{border-collapse:collapse;width:100%;min-width:520px}
@@ -54,7 +54,7 @@ table.serve td.act button{font-size:.76rem;padding:6px 10px}
   </section>
 </div>
 
-<script src="assets/site.js?v=20260902i"></script>
+<script src="assets/site.js?v=20260902j"></script>
 <script>
 (function(){
 "use strict";
@@ -107,9 +107,9 @@ function nameOptions(fromTeam, selected){
     h += '<optgroup label="그 외 전체">' +
          rest.map(function(m){ return opt(m.name + ' · ' + (m.team||''), selected, m.name); }).join('') + '</optgroup>';
   }
-  /* 명단에 없는 이름이 저장돼 있으면 잃지 않도록 남겨 둔다 */
+  /* 명단에 없는 이름은 객원으로 표시하고 값은 그대로 지킨다 */
   if(selected && state.members.every(function(m){ return m.name !== selected; })){
-    h += '<option value="'+esc(selected)+'" selected>'+esc(selected)+' (명단 없음)</option>';
+    h += '<option value="'+esc(selected)+'" selected>'+esc(selected)+' (객원)</option>';
   }
   return h;
 }

@@ -8,7 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💙</text></svg>">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
-<link rel="stylesheet" href="assets/site.css?v=20260902i">
+<link rel="stylesheet" href="assets/site.css?v=20260902j">
 </head>
 <body>
 <div id="app">
@@ -46,7 +46,7 @@
   </div>
 </div>
 
-<script src="assets/site.js?v=20260902i"></script>
+<script src="assets/site.js?v=20260902j"></script>
 <script>
 (function(){
 "use strict";
@@ -133,9 +133,11 @@ function renderServe(){
   var blocks = PW3.SERVE_TEAMS.map(function(t){
     var sv = PW3.findServe(state.serves, t.key, date);
     if(!sv) return '';
-    var filled = t.parts.filter(function(p){ return (sv.slots||{})[p]; });
+    var filled = t.parts.filter(function(p){ return PW3.cellText(sv.slots, p.name); });
     var line = filled.length
-      ? filled.map(function(p){ return '<span class="p">'+esc(p)+'</span> '+esc(sv.slots[p]); }).join(' · ')
+      ? filled.map(function(p){
+          return '<span class="p">'+esc(p.name)+'</span> '+esc(PW3.cellText(sv.slots, p.name));
+        }).join(' · ')
       : '<span class="p">미정</span>';
     return '<div><div class="tm">'+esc(t.label)+'</div><div class="ln">'+line+'</div></div>';
   }).filter(Boolean).join('');
