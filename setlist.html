@@ -27,6 +27,12 @@
     <div id="form"></div>
   </section>
 
+  <section class="card">
+    <h2>악보 곡별로 나누기</h2>
+    <div class="empty" style="padding:0 2px 12px">콘티 악보 PDF를 곡마다 잘라 자료실에 아카이빙합니다.</div>
+    <a class="filebtn" href="split.html">악보 분리 도구 열기</a>
+  </section>
+
   <div id="list"><div class="card"><div class="empty">불러오는 중…</div></div></div>
 </div>
 
@@ -103,8 +109,17 @@ function renderForm(){
        '</div>'+
        '<div class="row">'+
          '<input type="url" id="sScore" class="grow" placeholder="콘티 악보 PDF 링크" value="'+esc(formData.scoreUrl)+'">'+
-         '<input type="url" id="sCue" class="grow" placeholder="큐시트 PDF 링크" value="'+esc(formData.cueUrl)+'">'+
+         '<label class="filepick" for="fScore" id="lScore">악보 PDF 올리기</label>'+
+         '<input type="file" id="fScore" accept="application/pdf" style="display:none">'+
        '</div>'+
+       '<div class="uphint" id="hScore"></div>'+
+       '<div class="row" style="margin-top:10px">'+
+         '<input type="url" id="sCue" class="grow" placeholder="큐시트 PDF 링크" value="'+esc(formData.cueUrl)+'">'+
+         '<label class="filepick" for="fCue" id="lCue">큐시트 PDF 올리기</label>'+
+         '<input type="file" id="fCue" accept="application/pdf" style="display:none">'+
+       '</div>'+
+       '<div class="uphint" id="hCue"></div>'+
+       '<div class="uphint">PDF를 올리면 구글드라이브에 저장되고 링크가 자동으로 채워집니다. 20MB까지.</div>'+
        '<div class="row" style="margin-top:12px">'+
          '<button class="primary" id="sGo">'+(editId ? '수정 저장' : '콘티 등록')+'</button>'+
          (editId ? '<button class="ghost" id="sCancel">취소</button>' : '')+
@@ -117,9 +132,30 @@ function renderForm(){
   if($('#delRow')) $('#delRow').addEventListener('click', function(){
     syncForm(); formData.songs.pop(); renderForm();
   });
+  bindUpload('fScore', 'lScore', 'hScore', 'sScore', '콘티 악보', '악보 PDF 올리기');
+  bindUpload('fCue',   'lCue',   'hCue',   'sCue',   '큐시트',    '큐시트 PDF 올리기');
   $('#sGo').addEventListener('click', submit);
   if($('#sCancel')) $('#sCancel').addEventListener('click', function(){
     editId = null; formData = blankForm(); renderForm(); renderList();
+  });
+}
+
+function bindUpload(fileId, labelId, hintId, targetId, folder, labelText){
+  var inp = $('#'+fileId), lab = $('#'+labelId), hint = $('#'+hintId);
+  if(!inp) return;
+  inp.addEventListener('change', function(){
+    var f = inp.files && inp.files[0];
+    if(!f) return;
+    lab.textContent = '올리는 중…'; lab.className = 'filepick busy';
+    hint.className = 'uphint'; hint.textContent = f.name + ' (' + Math.round(f.size/1024) + 'KB)';
+    PW3.uploadFile(f, folder, function(err, res){
+      lab.textContent = labelText; lab.className = 'filepick';
+      inp.value = '';
+      if(err){ hint.className = 'uphint err'; hint.textContent = PW3.uploadError(err); return; }
+      $('#'+targetId).value = res.url;
+      hint.className = 'uphint ok'; hint.textContent = '업로드 완료 — ' + res.name;
+      syncForm();
+    });
   });
 }
 
@@ -182,6 +218,12 @@ function renderList(){
     });
   });
 }
+/* PIN이 없으면 서버가 링크를 지우고 hasScore/hasCue 플래그만 준다 */
+function fileBtn(url, has, label, short){
+  if(url) return '<a class="filebtn" href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">'+label+'</a>';
+  if(has) return '<span class="filebtn off">🔒 '+short+' (PIN 필요)</span>';
+  return '<span class="filebtn off">'+short+' 미등록</span>';
+}
 function card(s){
   var songs = (s.songs || []).map(function(sg, i){
     return '<li><span class="no">'+(i+1)+'</span>'+
@@ -189,11 +231,8 @@ function card(s){
              (sg.url ? '<a class="yt" href="'+esc(sg.url)+'" target="_blank" rel="noopener noreferrer">▶ '+ytLabel(sg.url)+'</a>' : '')+
            '</li>';
   }).join('');
-  var files =
-    (s.scoreUrl ? '<a class="filebtn" href="'+esc(s.scoreUrl)+'" target="_blank" rel="noopener noreferrer">콘티 악보 PDF</a>'
-                : '<span class="filebtn off">악보 미등록</span>')+
-    (s.cueUrl ? '<a class="filebtn" href="'+esc(s.cueUrl)+'" target="_blank" rel="noopener noreferrer">큐시트 PDF</a>'
-              : '<span class="filebtn off">큐시트 미등록</span>');
+  var files = fileBtn(s.scoreUrl, s.hasScore, '콘티 악보 PDF', '악보') +
+              fileBtn(s.cueUrl, s.hasCue, '큐시트 PDF', '큐시트');
   return '<section class="setcard">'+
     '<div class="head">'+
       '<span class="d">'+esc(PW3.dateLabel(s.date))+' 콘티</span>'+

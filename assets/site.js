@@ -142,6 +142,53 @@ function saveSection(patch, cb){
     .catch(function(err){ cb(err instanceof Error ? err : new Error('save')); });
 }
 
+/* ---------- 파일 업로드 ---------- */
+var MAX_UPLOAD = 20 * 1024 * 1024;   /* 20MB */
+
+function bytesToB64(bytes){
+  var bin = '', chunk = 0x8000;
+  for(var i=0;i<bytes.length;i+=chunk){
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i+chunk));
+  }
+  return btoa(bin);
+}
+/* file: File 또는 {name, bytes:Uint8Array}. cb(err, {url, name}) */
+function uploadFile(file, folder, cb){
+  if(!hasPin()){ cb(new Error('pin')); return; }
+  function send(name, mime, b64){
+    fetch(apiURL('mode=upload'), {
+      method:'POST',
+      body: JSON.stringify({ name:name, mime:mime||'application/pdf', folder:folder||'기타', data:b64 })
+    })
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(res){
+        if(!res || !res.ok) throw new Error(res && res.error ? res.error : 'upload');
+        cb(null, res);
+      })
+      .catch(function(err){ cb(err instanceof Error ? err : new Error('upload')); });
+  }
+  if(file.bytes){
+    if(file.bytes.length > MAX_UPLOAD){ cb(new Error('size')); return; }
+    send(file.name, 'application/pdf', bytesToB64(file.bytes));
+    return;
+  }
+  if(file.size > MAX_UPLOAD){ cb(new Error('size')); return; }
+  var reader = new FileReader();
+  reader.onload = function(){
+    var res = String(reader.result), i = res.indexOf(',');
+    send(file.name, file.type, res.slice(i+1));
+  };
+  reader.onerror = function(){ cb(new Error('read')); };
+  reader.readAsDataURL(file);
+}
+function uploadError(err){
+  var m = err && err.message;
+  if(m === 'pin')  return 'PIN이 필요합니다';
+  if(m === 'size') return '파일이 20MB를 넘습니다';
+  if(m === 'read') return '파일을 읽지 못했습니다';
+  return '업로드 실패';
+}
+
 /* ---------- 상단 메뉴 ---------- */
 var MENU = [
   {href:'index.html',      key:'home',       label:'홈'},
@@ -162,6 +209,7 @@ function navHTML(active){
 return {
   API:API, apiURL:apiURL, esc:esc, uid:uid, todayISO:todayISO, dateLabel:dateLabel, daysUntil:daysUntil,
   navHTML:navHTML, load:load, safeURL:safeURL, currentByDate:currentByDate, saveSection:saveSection, normalize:normalize,
-  getPin:getPin, setPin:setPin, clearPin:clearPin, hasPin:hasPin, verifyPin:verifyPin, inlinePin:inlinePin
+  getPin:getPin, setPin:setPin, clearPin:clearPin, hasPin:hasPin, verifyPin:verifyPin, inlinePin:inlinePin,
+  uploadFile:uploadFile, uploadError:uploadError, bytesToB64:bytesToB64
 };
 })();

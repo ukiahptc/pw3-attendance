@@ -1,5 +1,6 @@
 var SHEET_NAME = 'DATA';
 var CHUNK = 40000;
+var ROOT_FOLDER_NAME = 'PW3 예배팀 자료';
 
 /* PIN은 코드에 쓰지 않는다. 프로젝트 설정 > 스크립트 속성에 PIN 이름으로 저장.
    속성이 비어 있으면 기존처럼 전부 공개된다(사이트가 죽지 않도록 한 안전장치). */
@@ -24,25 +25,43 @@ function readAll_() {
   return json || '{}';
 }
 
-/* 개인정보(명단·출결·사유)를 제거한 공개용 데이터 */
+/* 개인정보와 파일 링크를 제거한 공개용 데이터.
+   공개: 모임 날짜, 공지, 행사, 콘티 곡 목록·유튜브 링크
+   비공개: 명단·출결·사유, 악보/큐시트 PDF 링크, 자료실 목록 */
 function publicView_(json) {
   var s;
-  try { s = JSON.parse(json); } catch (err) { return { redacted: true, meetings: [], events: [], resources: [] }; }
-  var src = s.meetings || [];
+  try { s = JSON.parse(json); } catch (err) {
+    return { redacted: true, meetings: [], events: [], resources: [], setlists: [] };
+  }
   var meetings = [];
-  for (var i = 0; i < src.length; i++) meetings.push({ id: src[i].id, date: src[i].date });
+  var ms = s.meetings || [];
+  for (var i = 0; i < ms.length; i++) meetings.push({ id: ms[i].id, date: ms[i].date });
+
+  var setlists = [];
+  var sl = s.setlists || [];
+  for (var j = 0; j < sl.length; j++) {
+    setlists.push({
+      id: sl[j].id,
+      date: sl[j].date,
+      songs: sl[j].songs || [],
+      scoreUrl: '',
+      cueUrl: '',
+      hasScore: !!sl[j].scoreUrl,
+      hasCue: !!sl[j].cueUrl
+    });
+  }
   return {
     redacted: true,
     meetings: meetings,
+    setlists: setlists,
     notice: s.notice || { text: '', at: 0 },
     events: s.events || [],
-    resources: s.resources || [],
+    resources: [],
     updatedAt: s.updatedAt || 0
   };
 }
 
 function doGet(e) {
-  /* PIN 확인 전용 요청 */
   if (e && e.parameter && e.parameter.probe) {
     return out_({ ok: true, pinOK: pinOK_(e), configured: getPin_() !== '' });
   }
@@ -56,12 +75,22 @@ function doGet(e) {
 
 function doPost(e) {
   if (!pinOK_(e)) return out_({ ok: false, error: 'pin' });
+  var mode = e && e.parameter && e.parameter.mode;
+  if (mode === 'upload') return upload_(e);
+  return saveState_(e);
+}
+
+/* ---------- 상태 저장 ---------- */
+function saveState_(e) {
   var body = e && e.postData && e.postData.contents;
   if (!body) return out_({ ok: false, error: 'empty' });
   var parsed;
   try { parsed = JSON.parse(body); } catch (err) { return out_({ ok: false, error: 'invalid json' }); }
-  /* 공개용 축약본이 잘못 올라와 명단을 덮어쓰는 사고 방지 */
   if (parsed && parsed.redacted) return out_({ ok: false, error: 'redacted' });
+  /* 업로드 요청이 상태 저장으로 잘못 흘러들어 DB를 덮어쓰는 사고 방지 */
+  if (parsed && parsed.data && parsed.name && !parsed.members && !parsed.meetings) {
+    return out_({ ok: false, error: 'upload payload' });
+  }
 
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -75,6 +104,49 @@ function doPost(e) {
     lock.releaseLock();
   }
   return out_({ ok: true });
+}
+
+/* ---------- 파일 업로드 ---------- */
+/* 본문 형식: {"name":"...","mime":"application/pdf","folder":"콘티 악보","data":"<base64>"} */
+function upload_(e) {
+  var body = e && e.postData && e.postData.contents;
+  if (!body) return out_({ ok: false, error: 'empty' });
+  var req;
+  try { req = JSON.parse(body); } catch (err) { return out_({ ok: false, error: 'invalid json' }); }
+  if (!req.data || !req.name) return out_({ ok: false, error: 'no file' });
+
+  try {
+    var bytes = Utilities.base64Decode(req.data);
+    var blob = Utilities.newBlob(bytes, req.mime || 'application/pdf', req.name);
+    var folder = subFolder_(req.folder || '기타');
+    var file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    return out_({
+      ok: true,
+      id: file.getId(),
+      name: file.getName(),
+      url: 'https://drive.google.com/file/d/' + file.getId() + '/view'
+    });
+  } catch (err) {
+    return out_({ ok: false, error: String(err) });
+  }
+}
+
+function rootFolder_() {
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty('FOLDER_ID');
+  if (id) {
+    try { return DriveApp.getFolderById(id); } catch (err) { /* 삭제됐으면 새로 만든다 */ }
+  }
+  var it = DriveApp.getFoldersByName(ROOT_FOLDER_NAME);
+  var f = it.hasNext() ? it.next() : DriveApp.createFolder(ROOT_FOLDER_NAME);
+  props.setProperty('FOLDER_ID', f.getId());
+  return f;
+}
+function subFolder_(name) {
+  var root = rootFolder_();
+  var it = root.getFoldersByName(name);
+  return it.hasNext() ? it.next() : root.createFolder(name);
 }
 
 function getSheet_() {

@@ -93,6 +93,12 @@ function renderCtl(){
   }
 }
 
+/* PIN이 없으면 서버가 링크를 지우고 hasScore/hasCue 플래그만 준다 */
+function fileBtn(url, has, label, short){
+  if(url) return '<a class="filebtn" href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">'+label+'</a>';
+  if(has) return '<span class="filebtn off">🔒 '+short+' (PIN 필요)</span>';
+  return '';
+}
 function renderSetlist(){
   var c = $('#setCard');
   var sl = PW3.currentByDate(state.setlists);
@@ -107,10 +113,9 @@ function renderSetlist(){
              (sg.url ? '<a class="yt" href="'+esc(sg.url)+'" target="_blank" rel="noopener noreferrer">▶ 유튜브</a>' : '')+
            '</li>';
   }).join('');
-  var files =
-    (sl.scoreUrl ? '<a class="filebtn" href="'+esc(sl.scoreUrl)+'" target="_blank" rel="noopener noreferrer">콘티 악보 PDF</a>' : '')+
-    (sl.cueUrl ? '<a class="filebtn" href="'+esc(sl.cueUrl)+'" target="_blank" rel="noopener noreferrer">큐시트 PDF</a>' : '')+
-    '<a class="filebtn off" href="setlist.html">지난 콘티 보기</a>';
+  var files = fileBtn(sl.scoreUrl, sl.hasScore, '콘티 악보 PDF', '악보') +
+              fileBtn(sl.cueUrl, sl.hasCue, '큐시트 PDF', '큐시트') +
+              '<a class="filebtn off" href="setlist.html">지난 콘티 보기</a>';
   c.innerHTML = '<h2>금주 콘티 <span class="sub">'+esc(PW3.dateLabel(sl.date))+'</span></h2>'+
                 '<ul class="songs">'+songs+'</ul>'+
                 '<div class="filebtns">'+files+'</div>';

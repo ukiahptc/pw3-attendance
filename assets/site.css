@@ -126,3 +126,23 @@ textarea{min-height:96px;resize:vertical;line-height:1.6}
 .setcard{background:var(--surface);border-radius:20px;padding:20px 18px;box-shadow:var(--shadow);margin-bottom:16px}
 .setcard .head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .setcard .head .d{font-weight:800;font-size:1.05rem;letter-spacing:-.01em}
+
+/* 파일 업로드 */
+label.filepick{
+  appearance:none;font:inherit;font-size:.86rem;font-weight:700;cursor:pointer;
+  border-radius:12px;padding:10px 14px;background:var(--accent-soft);color:var(--accent);white-space:nowrap;
+}
+label.filepick.busy{background:var(--surface2);color:var(--muted);cursor:default}
+.uphint{font-size:.8rem;color:var(--muted);margin-top:6px}
+.uphint.err{color:var(--bad);font-weight:700}
+.uphint.ok{color:var(--accent);font-weight:700}
+
+/* 악보 분리 도구 */
+.pages{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-top:14px}
+.page{background:var(--surface2);border-radius:14px;padding:10px;border:2px solid transparent}
+.page.start{border-color:var(--accent)}
+.page canvas{width:100%;height:auto;border-radius:8px;background:#fff;display:block}
+.page .pno{font-size:.76rem;color:var(--muted);font-weight:700;margin:8px 0 6px}
+.page label.ck{display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:700;cursor:pointer;margin-bottom:6px}
+.page input[type="text"]{font-size:.82rem;padding:7px 9px}
+.plan{background:var(--accent-soft);color:var(--accent);border-radius:14px;padding:12px 14px;font-size:.85rem;font-weight:600;margin-top:14px;white-space:pre-wrap}
