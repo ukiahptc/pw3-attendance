@@ -105,6 +105,7 @@ function normalize(s){
   if(!s.events)    s.events = [];
   if(!s.resources) s.resources = [];
   if(!s.setlists)  s.setlists = [];
+  if(!s.serves)    s.serves = [];
   return s;
 }
 function load(cb){
@@ -189,10 +190,47 @@ function uploadError(err){
   return '업로드 실패';
 }
 
+/* ---------- 섬김표 ---------- */
+var SERVE_TEAMS = [
+  {key:'singer', label:'싱어팀',   parts:['인도자(무선1번)','1번','2번','3번','4번','5번','6번']},
+  {key:'band',   label:'밴드팀',   parts:['메인건반','세컨건반','일렉기타','베이스기타','드럼','어쿠스틱']},
+  {key:'media',  label:'미디어팀', parts:['자막','음향','조명','사진']}
+];
+function serveTeam(key){
+  for(var i=0;i<SERVE_TEAMS.length;i++) if(SERVE_TEAMS[i].key===key) return SERVE_TEAMS[i];
+  return SERVE_TEAMS[0];
+}
+function findServe(list, team, date){
+  for(var i=0;i<(list||[]).length;i++){
+    if(list[i].team===team && list[i].date===date) return list[i];
+  }
+  return null;
+}
+/* 다음 일요일 (오늘이 일요일이면 오늘) */
+function nextSunday(){
+  var d = new Date(), p = function(n){ return (n<10?'0':'')+n; };
+  d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+}
+/* 카카오톡에 붙여넣을 텍스트 */
+function serveText(team, date, slots){
+  var t = serveTeam(team);
+  var lines = ['[PW3 예배팀] ' + dateLabel(date) + ' ' + t.label + ' 섬김'];
+  var empty = [];
+  for(var i=0;i<t.parts.length;i++){
+    var part = t.parts[i], name = (slots && slots[part] || '').trim();
+    if(name) lines.push(part + ' ' + name);
+    else empty.push(part);
+  }
+  if(empty.length) lines.push('미정 ' + empty.join(', '));
+  return lines.join('\n');
+}
+
 /* ---------- 상단 메뉴 ---------- */
 var MENU = [
   {href:'index.html',      key:'home',       label:'홈'},
   {href:'setlist.html',    key:'setlist',    label:'콘티'},
+  {href:'serve.html',      key:'serve',      label:'섬김'},
   {href:'schedule.html',   key:'schedule',   label:'일정'},
   {href:'attendance.html', key:'attendance', label:'출결부'},
   {href:'resources.html',  key:'resources',  label:'자료실'}
@@ -208,7 +246,8 @@ function navHTML(active){
 
 return {
   API:API, apiURL:apiURL, esc:esc, uid:uid, todayISO:todayISO, dateLabel:dateLabel, daysUntil:daysUntil,
-  navHTML:navHTML, load:load, safeURL:safeURL, currentByDate:currentByDate, saveSection:saveSection, normalize:normalize,
+  navHTML:navHTML, load:load, safeURL:safeURL, currentByDate:currentByDate,
+  SERVE_TEAMS:SERVE_TEAMS, serveTeam:serveTeam, findServe:findServe, nextSunday:nextSunday, serveText:serveText, saveSection:saveSection, normalize:normalize,
   getPin:getPin, setPin:setPin, clearPin:clearPin, hasPin:hasPin, verifyPin:verifyPin, inlinePin:inlinePin,
   uploadFile:uploadFile, uploadError:uploadError, bytesToB64:bytesToB64
 };

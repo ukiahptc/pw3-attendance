@@ -146,3 +146,21 @@ label.filepick.busy{background:var(--surface2);color:var(--muted);cursor:default
 .page label.ck{display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:700;cursor:pointer;margin-bottom:6px}
 .page input[type="text"]{font-size:.82rem;padding:7px 9px}
 .plan{background:var(--accent-soft);color:var(--accent);border-radius:14px;padding:12px 14px;font-size:.85rem;font-weight:600;margin-top:14px;white-space:pre-wrap}
+
+/* 섬김표 */
+.teamtabs{display:flex;gap:4px;background:var(--surface);border-radius:16px;padding:6px;margin-bottom:16px;box-shadow:var(--shadow)}
+.teamtabs button{flex:1;background:none;color:var(--muted);border-radius:11px;padding:10px 8px}
+.teamtabs button.on{background:var(--accent-soft);color:var(--accent)}
+.slotgrid{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;align-items:center}
+.slotgrid .pt{font-size:.85rem;font-weight:700;color:var(--muted);white-space:nowrap}
+.slotgrid input{font-size:.9rem;padding:9px 11px}
+.servelist .row1{display:flex;gap:8px;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--line)}
+.servelist .row1:last-child{border-bottom:none}
+.servelist .p{font-size:.82rem;font-weight:700;color:var(--muted);min-width:96px}
+.servelist .n{font-weight:700;font-size:.93rem}
+.servelist .n.none{color:var(--muted);font-weight:500}
+.homeserve{display:flex;flex-direction:column;gap:12px}
+.homeserve .tm{font-size:.78rem;font-weight:800;color:var(--accent);margin-bottom:4px}
+.homeserve .ln{font-size:.88rem;line-height:1.7}
+.homeserve .ln .p{color:var(--muted);font-weight:600}
+.copied{color:var(--accent);font-weight:700;font-size:.82rem;margin-top:8px;min-height:18px}

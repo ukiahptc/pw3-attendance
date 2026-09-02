@@ -8,7 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💙</text></svg>">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
-<link rel="stylesheet" href="assets/site.css?v=20260902d">
+<link rel="stylesheet" href="assets/site.css?v=20260902e">
 </head>
 <body>
 <div id="app">
@@ -32,6 +32,11 @@
     <div class="empty">불러오는 중…</div>
   </section>
 
+  <section class="card" id="serveCard">
+    <h2>금주 섬김</h2>
+    <div class="empty">불러오는 중…</div>
+  </section>
+
   <section class="card">
     <h2>공지 <span class="sub">수정은 리더십 PIN</span></h2>
     <div id="noticeView"><div class="empty">불러오는 중…</div></div>
@@ -40,13 +45,14 @@
 
   <div class="menugrid">
     <a href="setlist.html"><div class="t">콘티</div><div class="d">주차별 찬양·악보</div></a>
+    <a href="serve.html"><div class="t">섬김</div><div class="d">팀별 섬김표</div></a>
     <a href="schedule.html"><div class="t">일정</div><div class="d">모임·행사 일정 보기</div></a>
     <a href="attendance.html"><div class="t">출결부</div><div class="d">토요모임 출결 체크</div></a>
     <a href="resources.html"><div class="t">자료실</div><div class="d">콘티·악보·링크 모음</div></a>
   </div>
 </div>
 
-<script src="assets/site.js?v=20260902d"></script>
+<script src="assets/site.js?v=20260902e"></script>
 <script>
 (function(){
 "use strict";
@@ -121,6 +127,29 @@ function renderSetlist(){
                 '<div class="filebtns">'+files+'</div>';
 }
 
+function renderServe(){
+  var c = $('#serveCard');
+  var near = PW3.currentByDate(state.serves);
+  if(!near){
+    c.innerHTML = '<h2>금주 섬김</h2><div class="empty">등록된 섬김표가 없습니다. '+
+                  '<a href="serve.html" style="color:var(--accent);font-weight:700">섬김표 작성하기</a></div>';
+    return;
+  }
+  var date = near.date;
+  var blocks = PW3.SERVE_TEAMS.map(function(t){
+    var sv = PW3.findServe(state.serves, t.key, date);
+    if(!sv) return '';
+    var filled = t.parts.filter(function(p){ return (sv.slots||{})[p]; });
+    var line = filled.length
+      ? filled.map(function(p){ return '<span class="p">'+esc(p)+'</span> '+esc(sv.slots[p]); }).join(' · ')
+      : '<span class="p">미정</span>';
+    return '<div><div class="tm">'+esc(t.label)+'</div><div class="ln">'+line+'</div></div>';
+  }).filter(Boolean).join('');
+  c.innerHTML = '<h2>금주 섬김 <span class="sub">'+esc(PW3.dateLabel(date))+'</span></h2>'+
+                '<div class="homeserve">'+blocks+'</div>'+
+                '<div class="filebtns"><a class="filebtn off" href="serve.html">섬김표 전체 보기</a></div>';
+}
+
 function renderNotice(){
   var v = $('#noticeView');
   if(editing){
@@ -156,7 +185,7 @@ function doSave(){
 PW3.load(function(err, s){
   state = s;
   setStatus(err ? '오프라인' : '저장됨', err ? 'err' : '');
-  renderNext(); renderSetlist(); renderNotice(); renderCtl();
+  renderNext(); renderSetlist(); renderServe(); renderNotice(); renderCtl();
 });
 })();
 </script>

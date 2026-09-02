@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>섬김표 · PW3 예배팀</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💙</text></svg>">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
+<link rel="stylesheet" href="assets/site.css?v=20260902e">
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <h1>
+      <a href="index.html" class="wm" style="text-decoration:none"><span class="lp">P</span><span class="lw">W</span><span class="l3">3</span><span class="spark">✦</span></a>
+      섬김표
+    </h1>
+    <span id="saveStatus">불러오는 중…</span>
+  </header>
+  <p class="subtitle">팀별로 따로 작성하고 따로 내보냅니다</p>
+  <div id="nav"></div>
+
+  <nav class="teamtabs" id="teamtabs"></nav>
+
+  <section class="card">
+    <h2>섬김 작성 <span class="sub">작성·삭제는 리더십 PIN</span></h2>
+    <div id="editor"></div>
+  </section>
+
+  <div id="list"></div>
+</div>
+
+<script src="assets/site.js?v=20260902e"></script>
+<script>
+(function(){
+"use strict";
+var $ = function(s){ return document.querySelector(s); };
+var esc = PW3.esc;
+var state = PW3.normalize(null);
+var unlocked = PW3.hasPin();
+var team = 'singer';
+var editDate = null;   /* 작성 중인 날짜 */
+
+$('#nav').innerHTML = PW3.navHTML('serve');
+function setStatus(t, cls){ var el=$('#saveStatus'); el.textContent=t; el.className=cls||''; }
+function save(){
+  setStatus('저장 중…','busy');
+  PW3.saveSection({serves:state.serves}, function(err){
+    setStatus(err ? '저장 실패' : '저장됨', err ? 'err' : '');
+  });
+}
+function mine(){
+  return state.serves.filter(function(s){ return s.team === team; })
+                     .sort(function(a,b){ return a.date < b.date ? 1 : -1; });
+}
+
+/* ---------- 팀 탭 ---------- */
+function renderTabs(){
+  $('#teamtabs').innerHTML = PW3.SERVE_TEAMS.map(function(t){
+    return '<button data-team="'+t.key+'"'+(t.key===team?' class="on"':'')+'>'+esc(t.label)+'</button>';
+  }).join('');
+  Array.prototype.forEach.call($('#teamtabs').querySelectorAll('[data-team]'), function(b){
+    b.addEventListener('click', function(){
+      team = b.dataset.team; editDate = null;
+      renderTabs(); renderEditor(); renderList();
+    });
+  });
+}
+
+/* ---------- 작성 ---------- */
+function renderEditor(){
+  var box = $('#editor');
+  if(!unlocked){
+    box.innerHTML = '<button id="unlock">섬김표 작성하기 (PIN)</button>';
+    $('#unlock').addEventListener('click', function(){
+      PW3.inlinePin(box, function(){ unlocked = true; renderEditor(); renderList(); },
+                         function(){ renderEditor(); });
+    });
+    return;
+  }
+  var t = PW3.serveTeam(team);
+  var date = editDate || PW3.nextSunday();
+  var cur = PW3.findServe(state.serves, team, date);
+  var slots = cur ? cur.slots : {};
+
+  var h = '<div class="row" style="margin-bottom:14px">'+
+            '<input type="date" id="sDate" style="max-width:180px" value="'+esc(date)+'">'+
+            '<span style="font-size:.82rem;color:var(--muted);font-weight:600">'+esc(t.label)+
+              (cur ? ' · 이미 작성된 날짜라 불러왔습니다' : '')+'</span>'+
+          '</div><div class="slotgrid">';
+  for(var i=0;i<t.parts.length;i++){
+    var p = t.parts[i];
+    h += '<span class="pt">'+esc(p)+'</span>'+
+         '<input type="text" class="slot" data-part="'+esc(p)+'" placeholder="이름" value="'+esc(slots[p]||'')+'">';
+  }
+  h += '</div><div class="row" style="margin-top:14px">'+
+         '<button class="primary" id="sGo">저장</button>'+
+         (cur ? '<button class="danger" id="sDel">이 날짜 삭제</button>' : '')+
+       '</div>';
+  box.innerHTML = h;
+
+  $('#sDate').addEventListener('change', function(){ editDate = this.value; renderEditor(); });
+  $('#sGo').addEventListener('click', submit);
+  if($('#sDel')) $('#sDel').addEventListener('click', function(){
+    state.serves = state.serves.filter(function(x){ return !(x.team===team && x.date===date); });
+    editDate = null; renderEditor(); renderList(); save();
+  });
+}
+function collectSlots(){
+  var slots = {};
+  Array.prototype.forEach.call(document.querySelectorAll('.slot'), function(inp){
+    var v = inp.value.trim();
+    if(v) slots[inp.dataset.part] = v;
+  });
+  return slots;
+}
+function submit(){
+  var date = $('#sDate').value;
+  if(!date){ setStatus('날짜 확인','err'); return; }
+  var slots = collectSlots();
+  var cur = PW3.findServe(state.serves, team, date);
+  if(cur){ cur.slots = slots; cur.at = Date.now(); }
+  else { state.serves.push({ id: PW3.uid(), team: team, date: date, slots: slots, at: Date.now() }); }
+  editDate = date;
+  renderEditor(); renderList(); save();
+}
+
+/* ---------- 목록 + 내보내기 ---------- */
+function renderList(){
+  var t = PW3.serveTeam(team);
+  var items = mine();
+  if(!items.length){
+    $('#list').innerHTML = '<div class="card"><div class="empty">'+esc(t.label)+' 섬김표가 아직 없습니다.</div></div>';
+    return;
+  }
+  $('#list').innerHTML = items.map(function(s){
+    var rows = t.parts.map(function(p){
+      var n = (s.slots && s.slots[p]) || '';
+      return '<div class="row1"><span class="p">'+esc(p)+'</span>'+
+             '<span class="n'+(n?'':' none')+'">'+esc(n || '미정')+'</span></div>';
+    }).join('');
+    return '<section class="card">'+
+      '<div class="setcard head" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;background:none;box-shadow:none;padding:0;margin-bottom:10px">'+
+        '<span style="font-weight:800;font-size:1.02rem">'+esc(PW3.dateLabel(s.date))+' '+esc(t.label)+'</span>'+
+        '<span class="row">'+
+          '<button data-copy="'+s.date+'">텍스트 복사</button>'+
+          '<button data-img="'+s.date+'">이미지 저장</button>'+
+          (unlocked ? '<button data-edit="'+s.date+'">수정</button>' : '')+
+        '</span>'+
+      '</div>'+
+      '<div class="servelist">'+rows+'</div>'+
+      '<div class="copied" id="c-'+s.date+'"></div>'+
+    '</section>';
+  }).join('');
+
+  var wrap = $('#list');
+  Array.prototype.forEach.call(wrap.querySelectorAll('[data-copy]'), function(b){
+    b.addEventListener('click', function(){ doCopy(b.dataset.copy); });
+  });
+  Array.prototype.forEach.call(wrap.querySelectorAll('[data-img]'), function(b){
+    b.addEventListener('click', function(){ doImage(b.dataset.img); });
+  });
+  Array.prototype.forEach.call(wrap.querySelectorAll('[data-edit]'), function(b){
+    b.addEventListener('click', function(){
+      editDate = b.dataset.edit; renderEditor();
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
+  });
+}
+
+function textOf(date){
+  var s = PW3.findServe(state.serves, team, date);
+  return PW3.serveText(team, date, s ? s.slots : {});
+}
+function doCopy(date){
+  var txt = textOf(date), note = $('#c-'+date);
+  function fallback(){
+    var ta = document.createElement('textarea');
+    ta.value = txt; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); note.textContent = '복사했습니다. 카카오톡에 붙여넣으세요.'; }
+    catch(e){ note.textContent = '복사 실패 — 아래 내용을 직접 선택해 복사하세요.'; }
+    document.body.removeChild(ta);
+  }
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt)
+      .then(function(){ note.textContent = '복사했습니다. 카카오톡에 붙여넣으세요.'; })
+      .catch(fallback);
+  } else { fallback(); }
+}
+
+/* 표를 그려 PNG로 저장 */
+function doImage(date){
+  var t = PW3.serveTeam(team);
+  var s = PW3.findServe(state.serves, team, date);
+  var slots = s ? s.slots : {};
+  var W = 720, PAD = 36, ROW = 58, HEAD = 132;
+  var H = HEAD + ROW * t.parts.length + PAD;
+  var c = document.createElement('canvas');
+  var ratio = 2;
+  c.width = W * ratio; c.height = H * ratio;
+  var g = c.getContext('2d');
+  g.scale(ratio, ratio);
+  g.fillStyle = '#ffffff'; g.fillRect(0,0,W,H);
+  g.fillStyle = '#1d5cde';
+  g.font = '800 30px Pretendard, sans-serif';
+  g.fillText('PW3 ' + t.label + ' 섬김', PAD, 58);
+  g.fillStyle = '#8b95a1';
+  g.font = '600 20px Pretendard, sans-serif';
+  g.fillText(PW3.dateLabel(date), PAD, 92);
+  g.strokeStyle = '#eef1f4'; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(PAD, 112); g.lineTo(W-PAD, 112); g.stroke();
+  for(var i=0;i<t.parts.length;i++){
+    var y = HEAD + ROW*i + 20;
+    var name = (slots[t.parts[i]] || '').trim();
+    g.fillStyle = '#8b95a1'; g.font = '700 20px Pretendard, sans-serif';
+    g.fillText(t.parts[i], PAD, y);
+    g.fillStyle = name ? '#191f28' : '#b0b8c1';
+    g.font = (name ? '700 ' : '500 ') + '23px Pretendard, sans-serif';
+    g.fillText(name || '미정', PAD + 200, y);
+    g.strokeStyle = '#f2f4f6';
+    g.beginPath(); g.moveTo(PAD, y+22); g.lineTo(W-PAD, y+22); g.stroke();
+  }
+  var note = $('#c-'+date);
+  c.toBlob(function(blob){
+    if(!blob){ note.textContent = '이미지 생성 실패'; return; }
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'PW3_' + t.label + '_' + date + '.png';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 3000);
+    note.textContent = '이미지를 저장했습니다.';
+  }, 'image/png');
+}
+
+renderTabs();
+PW3.load(function(err, s){
+  state = s;
+  setStatus(err ? '오프라인' : '저장됨', err ? 'err' : '');
+  renderEditor(); renderList();
+});
+})();
+</script>
+</body>
+</html>
