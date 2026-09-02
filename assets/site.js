@@ -240,7 +240,11 @@ function findServe(list, team, date){
 function cell(slots, part){
   var v = (slots || {})[part];
   if(!v) return {m:'', s:''};
-  if(typeof v === 'string') return {m:v, s:''};
+  if(typeof v === 'string'){
+    /* 예전에 한 칸에 "김예서(최수지)"처럼 합쳐 저장한 값을 나눠 읽는다 */
+    var m = v.match(/^\s*([^()]+?)\s*\(\s*([^()]+?)\s*\)\s*$/);
+    return m ? {m:m[1], s:m[2]} : {m:v.trim(), s:''};
+  }
   return {m:v.m || '', s:v.s || ''};
 }
 function cellText(slots, part){
