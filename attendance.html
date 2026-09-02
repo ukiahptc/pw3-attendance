@@ -8,7 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💙</text></svg>">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
-<link rel="stylesheet" href="assets/site.css?v=20260902f">
+<link rel="stylesheet" href="assets/site.css?v=20260902g">
 <style>
 :root{
   --bg:#f2f4f6;
@@ -191,7 +191,7 @@ input[type="checkbox"]{width:17px;height:17px;accent-color:var(--accent);cursor:
   <main id="view"></main>
 </div>
 
-<script src="assets/site.js?v=20260902f"></script>
+<script src="assets/site.js?v=20260902g"></script>
 <script>
 (function(){
   document.getElementById("sitenav").innerHTML = PW3.navHTML("attendance");
@@ -572,8 +572,8 @@ function renderMembers(){
     + '<select id="newTeam" style="width:120px">'
     +   opts.map(function(t){ return '<option value="'+esc(t)+'">'+esc(t)+'</option>'; }).join('')
     + '</select>'
-    + '<select id="newRole"><option>교사</option><option>헬퍼</option><option>학생</option></select>'
-    + '<input type="text" id="newName" placeholder="이름 입력 후 Enter">'
+    + '<select id="newRole" style="width:110px"><option>교사</option><option>헬퍼</option><option>학생</option></select>'
+    + '<input type="text" id="newName" placeholder="이름 입력 후 Enter" style="flex:1;min-width:150px">'
     + '<button class="btn primary" id="btnAddName">추가</button>'
     + '</div></div>';
   h += '<div class="card"><h2>명단 <span class="mini">('+state.members.length+'명)</span></h2>';
