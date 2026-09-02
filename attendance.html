@@ -196,7 +196,7 @@ input[type="checkbox"]{width:17px;height:17px;accent-color:var(--accent);cursor:
 (function(){
   document.getElementById("sitenav").innerHTML = PW3.navHTML("attendance");
   var g = document.getElementById("gate");
-  if(PW3.pinOK()){ g.parentNode.removeChild(g); return; }
+  if(PW3.hasPin()){ g.parentNode.removeChild(g); return; }
   g.innerHTML = '<div class="lock">'+
     '<div class="ico">🔒</div>'+
     '<h2 style="margin:10px 0 0">출결부</h2>'+
@@ -208,8 +208,15 @@ input[type="checkbox"]{width:17px;height:17px;accent-color:var(--accent);cursor:
   '</div>';
   var inp = document.getElementById("pinInput");
   function go(){
-    if(PW3.pinCheck(inp.value)){ PW3.pinSet(); g.parentNode.removeChild(g); }
-    else { document.getElementById("pinErr").textContent = "PIN이 맞지 않습니다."; inp.value=""; inp.focus(); }
+    var v = inp.value; if(!v) return;
+    var btn = document.getElementById("pinGo");
+    btn.disabled = true;
+    document.getElementById("pinErr").textContent = "확인 중…";
+    PW3.verifyPin(v, function(ok){
+      btn.disabled = false;
+      if(ok){ PW3.setPin(v); location.reload(); }
+      else { document.getElementById("pinErr").textContent = "PIN이 맞지 않습니다."; inp.value=""; inp.focus(); }
+    });
   }
   document.getElementById("pinGo").addEventListener("click", go);
   document.getElementById("pinBack").addEventListener("click", function(){ location.href = "index.html"; });
@@ -225,7 +232,7 @@ input[type="checkbox"]{width:17px;height:17px;accent-color:var(--accent);cursor:
 <script>
 (function(){
 "use strict";
-var API = 'https://script.google.com/macros/s/AKfycbyR8SLsBOI3udMaj_xtVyV5O-4WU7piBXkDSE1YjjBAynhCH3E-h6KOjYeTX5ZoUVSP/exec';
+var API = PW3.apiURL();  /* PIN이 있으면 자동으로 붙는다 */
 var $ = function(s){ return document.querySelector(s); };
 var esc = function(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
@@ -642,6 +649,11 @@ render();
 fetch(API, {cache:'no-store'})
   .then(function(r){ if(!r.ok) throw 0; return r.json(); })
   .then(function(s){
+    /* PIN이 틀렸거나 서버에서 PIN이 바뀐 경우: 축약본만 온다 → 잠금 화면으로 되돌린다 */
+    if(s && s.redacted){
+      if(PW3.hasPin()){ PW3.clearPin(); location.reload(); }
+      return;
+    }
     if(s && s.members){ state = s; }
     ready = true; setStatus('저장됨'); render();
   })

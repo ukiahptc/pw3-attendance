@@ -41,7 +41,7 @@
 var $ = function(s){ return document.querySelector(s); };
 var esc = PW3.esc;
 var state = PW3.normalize(null);
-var unlocked = PW3.pinOK();
+var unlocked = PW3.hasPin();
 
 $('#nav').innerHTML = PW3.navHTML('schedule');
 function setStatus(t, cls){ var el=$('#saveStatus'); el.textContent=t; el.className=cls||''; }
@@ -77,10 +77,7 @@ function renderAdd(){
   if(!unlocked){
     box.innerHTML = '<button id="unlock">행사 추가하기 (PIN)</button>';
     $('#unlock').addEventListener('click', function(){
-      var pin = prompt('리더십 PIN을 입력해 주세요.');
-      if(pin === null) return;
-      if(!PW3.pinCheck(pin)){ setStatus('PIN 불일치','err'); return; }
-      PW3.pinSet(); unlocked = true; renderAdd(); renderEvents();
+      PW3.inlinePin(box, function(){ unlocked = true; renderAdd(); renderEvents(); }, function(){ renderAdd(); });
     });
     return;
   }

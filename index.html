@@ -30,9 +30,7 @@
   <section class="card">
     <h2>공지 <span class="sub">수정은 리더십 PIN</span></h2>
     <div id="noticeView"><div class="empty">불러오는 중…</div></div>
-    <div class="row" style="margin-top:12px">
-      <button id="noticeEdit">공지 수정</button>
-    </div>
+    <div class="row" id="noticeCtl" style="margin-top:12px"></div>
   </section>
 
   <div class="menugrid">
@@ -76,52 +74,55 @@ function renderNext(){
     (up.length>1 ? '<div class="m" style="margin-top:10px;font-size:.82rem;color:var(--muted)">그다음 '+esc(PW3.dateLabel(up[1].date))+'</div>' : '');
 }
 
+function renderCtl(){
+  var c = $('#noticeCtl');
+  c.innerHTML = editing
+    ? '<button class="primary" id="noticeSave">저장</button><button class="ghost" id="noticeCancel">취소</button>'
+    : '<button id="noticeEdit">공지 수정</button>';
+  if(editing){
+    $('#noticeSave').addEventListener('click', doSave);
+    $('#noticeCancel').addEventListener('click', function(){ editing=false; renderNotice(); renderCtl(); });
+  } else {
+    $('#noticeEdit').addEventListener('click', startEdit);
+  }
+}
+
 function renderNotice(){
   var v = $('#noticeView');
   if(editing){
     v.innerHTML = '<textarea id="noticeText">'+esc(state.notice.text)+'</textarea>';
-    $('#noticeEdit').textContent = '저장';
-    if(!$('#noticeCancel')){
-      var b = document.createElement('button');
-      b.id = 'noticeCancel'; b.className = 'ghost'; b.textContent = '취소';
-      $('#noticeEdit').parentNode.appendChild(b);
-      b.addEventListener('click', function(){ editing=false; renderNotice(); });
-    }
     $('#noticeText').focus();
     return;
   }
-  var c = $('#noticeCancel'); if(c) c.parentNode.removeChild(c);
-  $('#noticeEdit').textContent = '공지 수정';
   v.innerHTML = state.notice.text
     ? '<div class="notice">'+esc(state.notice.text)+'</div>'+
-      (state.notice.at ? '<div class="m" style="margin-top:10px;font-size:.78rem;color:var(--muted)">최종 수정 '+esc(PW3.dateLabel(new Date(state.notice.at).toISOString().slice(0,10)))+'</div>' : '')
+      (state.notice.at ? '<div style="margin-top:10px;font-size:.78rem;color:var(--muted)">최종 수정 '+esc(PW3.dateLabel(new Date(state.notice.at).toISOString().slice(0,10)))+'</div>' : '')
     : '<div class="empty">등록된 공지가 없습니다.</div>';
 }
 
-$('#noticeEdit').addEventListener('click', function(){
-  if(editing){
-    var txt = $('#noticeText').value;
-    state.notice = {text:txt, at:Date.now()};
-    editing = false; renderNotice();
-    setStatus('저장 중…','busy');
-    PW3.saveSection({notice:state.notice}, function(err){
-      setStatus(err ? '저장 실패' : '저장됨', err ? 'err' : '');
-    });
+function startEdit(){
+  if(!PW3.hasPin()){
+    PW3.inlinePin($('#noticeCtl'),
+      function(){ editing = true; renderNotice(); renderCtl(); },
+      function(){ renderCtl(); });
     return;
   }
-  if(!PW3.pinOK()){
-    var pin = prompt('리더십 PIN을 입력해 주세요.');
-    if(pin === null) return;
-    if(!PW3.pinCheck(pin)){ setStatus('PIN 불일치','err'); return; }
-    PW3.pinSet();
-  }
-  editing = true; renderNotice();
-});
+  editing = true; renderNotice(); renderCtl();
+}
+
+function doSave(){
+  state.notice = {text: $('#noticeText').value, at: Date.now()};
+  editing = false; renderNotice(); renderCtl();
+  setStatus('저장 중…','busy');
+  PW3.saveSection({notice:state.notice}, function(err){
+    setStatus(err ? '저장 실패' : '저장됨', err ? 'err' : '');
+  });
+}
 
 PW3.load(function(err, s){
   state = s;
   setStatus(err ? '오프라인' : '저장됨', err ? 'err' : '');
-  renderNext(); renderNotice();
+  renderNext(); renderNotice(); renderCtl();
 });
 })();
 </script>
