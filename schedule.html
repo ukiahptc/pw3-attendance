@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>일정 · PW3 예배팀</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💙</text></svg>">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <h1>
+      <a href="index.html" class="wm"><span class="lp">P</span><span class="lw">W</span><span class="l3">3</span><span class="spark">✦</span></a>
+      일정
+    </h1>
+    <span id="saveStatus">불러오는 중…</span>
+  </header>
+  <p class="subtitle">토요모임과 행사 일정</p>
+  <div id="nav"></div>
+
+  <section class="card">
+    <h2>토요모임 <span class="sub">날짜 추가·삭제는 출결부에서</span></h2>
+    <div id="meetList" class="list"><div class="empty">불러오는 중…</div></div>
+  </section>
+
+  <section class="card">
+    <h2>행사 일정 <span class="sub">추가·삭제는 리더십 PIN</span></h2>
+    <div id="evAdd"></div>
+    <div id="evList" class="list" style="margin-top:14px"><div class="empty">불러오는 중…</div></div>
+  </section>
+</div>
+
+<script src="assets/site.js"></script>
+<script>
+(function(){
+"use strict";
+var $ = function(s){ return document.querySelector(s); };
+var esc = PW3.esc;
+var state = PW3.normalize(null);
+var unlocked = PW3.pinOK();
+
+$('#nav').innerHTML = PW3.navHTML('schedule');
+function setStatus(t, cls){ var el=$('#saveStatus'); el.textContent=t; el.className=cls||''; }
+function save(){
+  setStatus('저장 중…','busy');
+  PW3.saveSection({events:state.events}, function(err){
+    setStatus(err ? '저장 실패' : '저장됨', err ? 'err' : '');
+  });
+}
+
+function renderMeetings(){
+  var today = PW3.todayISO();
+  var ms = state.meetings.slice().sort(function(a,b){ return a.date < b.date ? -1 : 1; });
+  var up = ms.filter(function(m){ return m.date >= today; });
+  var past = ms.filter(function(m){ return m.date < today; }).reverse();
+  var rows = up.map(function(m){ return row(m.date, '토요모임', '11:00–13:00', false); })
+    .concat(past.slice(0,6).map(function(m){ return row(m.date, '토요모임', '11:00–13:00', true); }));
+  $('#meetList').innerHTML = rows.length ? rows.join('')
+    : '<div class="empty">등록된 모임 날짜가 없습니다.</div>';
+}
+function row(date, title, meta, isPast){
+  var d = PW3.daysUntil(date);
+  var pill = isPast ? '<span class="pill past">지난</span>'
+                    : '<span class="pill">'+(d===0?'D-DAY':'D-'+d)+'</span>';
+  return '<div class="item"><div>'+
+      '<div class="t">'+pill+esc(PW3.dateLabel(date))+'</div>'+
+      '<div class="m">'+esc(title)+(meta?' · '+esc(meta):'')+'</div>'+
+    '</div></div>';
+}
+
+function renderAdd(){
+  var box = $('#evAdd');
+  if(!unlocked){
+    box.innerHTML = '<button id="unlock">행사 추가하기 (PIN)</button>';
+    $('#unlock').addEventListener('click', function(){
+      var pin = prompt('리더십 PIN을 입력해 주세요.');
+      if(pin === null) return;
+      if(!PW3.pinCheck(pin)){ setStatus('PIN 불일치','err'); return; }
+      PW3.pinSet(); unlocked = true; renderAdd(); renderEvents();
+    });
+    return;
+  }
+  box.innerHTML =
+    '<div class="row">'+
+      '<input type="date" id="evDate" style="max-width:180px">'+
+      '<input type="time" id="evTime" style="max-width:130px">'+
+      '<input type="text" id="evTitle" class="grow" placeholder="행사명">'+
+    '</div>'+
+    '<div class="row" style="margin-top:8px">'+
+      '<input type="text" id="evPlace" class="grow" placeholder="장소 (선택)">'+
+      '<input type="text" id="evMemo" class="grow" placeholder="메모 (선택)">'+
+      '<button class="primary" id="evGo">추가</button>'+
+    '</div>';
+  $('#evDate').value = PW3.todayISO();
+  $('#evGo').addEventListener('click', function(){
+    var t = $('#evTitle').value.trim(), d = $('#evDate').value;
+    if(!t || !d){ setStatus('행사명·날짜 확인','err'); return; }
+    state.events.push({
+      id: PW3.uid(), date:d, time:$('#evTime').value,
+      title:t, place:$('#evPlace').value.trim(), memo:$('#evMemo').value.trim()
+    });
+    $('#evTitle').value=''; $('#evPlace').value=''; $('#evMemo').value=''; $('#evTime').value='';
+    renderEvents(); save();
+  });
+}
+
+var pendingDel = null, delTimer = null;
+function renderEvents(){
+  var today = PW3.todayISO();
+  var evs = state.events.slice().sort(function(a,b){ return a.date < b.date ? -1 : 1; });
+  var up = evs.filter(function(e){ return e.date >= today; });
+  var past = evs.filter(function(e){ return e.date < today; }).reverse();
+  var all = up.concat(past);
+  if(!all.length){ $('#evList').innerHTML = '<div class="empty">등록된 행사가 없습니다.</div>'; return; }
+  $('#evList').innerHTML = all.map(function(e){
+    var isPast = e.date < today;
+    var d = PW3.daysUntil(e.date);
+    var pill = isPast ? '<span class="pill past">지난</span>'
+                      : '<span class="pill">'+(d===0?'D-DAY':'D-'+d)+'</span>';
+    var meta = [PW3.dateLabel(e.date), e.time, e.place, e.memo].filter(Boolean).join(' · ');
+    return '<div class="item"><div>'+
+        '<div class="t">'+pill+esc(e.title)+'</div>'+
+        '<div class="m">'+esc(meta)+'</div>'+
+      '</div>'+
+      (unlocked ? '<button class="danger" data-del="'+e.id+'">'+(pendingDel===e.id?'한 번 더':'삭제')+'</button>' : '')+
+    '</div>';
+  }).join('');
+  Array.prototype.forEach.call($('#evList').querySelectorAll('[data-del]'), function(b){
+    b.addEventListener('click', function(){
+      var id = b.dataset.del;
+      if(pendingDel === id){
+        clearTimeout(delTimer); pendingDel = null;
+        state.events = state.events.filter(function(x){ return x.id !== id; });
+        renderEvents(); save();
+      } else {
+        pendingDel = id; renderEvents();
+        clearTimeout(delTimer);
+        delTimer = setTimeout(function(){ pendingDel = null; renderEvents(); }, 4000);
+      }
+    });
+  });
+}
+
+PW3.load(function(err, s){
+  state = s;
+  setStatus(err ? '오프라인' : '저장됨', err ? 'err' : '');
+  renderMeetings(); renderAdd(); renderEvents();
+});
+})();
+</script>
+</body>
+</html>
