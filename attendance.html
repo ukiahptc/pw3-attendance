@@ -8,7 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💙</text></svg>">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
-<link rel="stylesheet" href="assets/site.css?v=20260902g">
+<link rel="stylesheet" href="assets/site.css?v=20260902h">
 <style>
 :root{
   --bg:#f2f4f6;
@@ -191,7 +191,7 @@ input[type="checkbox"]{width:17px;height:17px;accent-color:var(--accent);cursor:
   <main id="view"></main>
 </div>
 
-<script src="assets/site.js?v=20260902g"></script>
+<script src="assets/site.js?v=20260902h"></script>
 <script>
 (function(){
   document.getElementById("sitenav").innerHTML = PW3.navHTML("attendance");
@@ -433,12 +433,10 @@ function renderCheck(){
     return h;
   }
   h += '<div class="tscroll"><table><thead><tr><th>이름</th><th>출결</th><th>상세</th></tr></thead><tbody>';
-  var lastTeam = null;
-  state.members.forEach(function(mb){
-    if((mb.team||'') !== lastTeam){
-      lastTeam = mb.team||'';
-      h += '<tr class="teamrow"><td colspan="3">'+(esc(lastTeam)||'팀 미지정')+'</td></tr>';
-    }
+  var groups = PW3.groupByTeam(state.members);
+  groups.forEach(function(grp){
+  h += '<tr class="teamrow"><td colspan="3">'+esc(grp.team)+'</td></tr>';
+  grp.members.forEach(function(mb){
     var r = (m.records||{})[mb.id] || {s:null,reason:'',lateTime:'',lateReason:''};
     h += '<tr><td class="name">'+esc(mb.name)+'<span class="role">'+esc(mb.role||'')+'</span></td><td>'
       + '<span class="seg">'
@@ -458,6 +456,7 @@ function renderCheck(){
     }
     h += '</td></tr>';
   });
+  });
   h += '</tbody></table></div>';
   h += '<p class="hint">불참을 누르면 사유 입력란이, 지각을 누르면 도착 시간과 사유 입력란이 나타납니다. 같은 버튼을 다시 누르면 해제되며, 불참은 자동으로 로마서 필사 명단에 올라갑니다.</p>';
   h += '</div>';
@@ -472,12 +471,10 @@ function renderSummary(){
   var h = '<div class="card"><h2>종합 출결 현황</h2><div class="tscroll"><table><thead><tr><th>이름</th>';
   ms.forEach(function(m){ h += '<th>'+dateLabel(m.date).slice(3)+'</th>'; });
   h += '<th>참석</th><th>지각</th><th>불참</th><th>출석률</th></tr></thead><tbody>';
-  var lastTeam = null;
-  state.members.forEach(function(mb){
-    if((mb.team||'') !== lastTeam){
-      lastTeam = mb.team||'';
-      h += '<tr class="teamrow"><td colspan="'+(ms.length+5)+'">'+(esc(lastTeam)||'팀 미지정')+'</td></tr>';
-    }
+  var groups = PW3.groupByTeam(state.members);
+  groups.forEach(function(grp){
+  h += '<tr class="teamrow"><td colspan="'+(ms.length+5)+'">'+esc(grp.team)+'</td></tr>';
+  grp.members.forEach(function(mb){
     var p=0,l=0,a=0;
     h += '<tr><td class="name">'+esc(mb.name)+'<span class="role">'+esc(mb.role||'')+'</span></td>';
     ms.forEach(function(m){
@@ -490,6 +487,7 @@ function renderSummary(){
     var t = p+l+a;
     var rate = t ? Math.round((p+l)/t*100)+'%' : '–';
     h += '<td class="statgood">'+p+'</td><td class="statwarn">'+l+'</td><td class="statbad">'+a+'</td><td>'+rate+'</td></tr>';
+  });
   });
   h += '</tbody></table></div>';
   h += '<p class="hint">○ 참석 · △ 지각 · × 불참. 지각은 출석률에 참석으로 계산되고, 미체크는 계산에서 제외됩니다.</p>';
@@ -561,7 +559,7 @@ function renderCopy(){
   return h;
 }
 
-var TEAM_OPTIONS = ['찬양팀','미디어팀','FD팀'];
+var TEAM_OPTIONS = PW3.MEMBER_TEAMS;
 
 function renderMembers(){
   /* 팀은 정해진 3개 중에서만 고른다. 자유 입력이면 오타로 팀이 새로 생긴다.
@@ -583,7 +581,10 @@ function renderMembers(){
   }
   h += '<div class="tscroll"><table><thead><tr><th>팀</th><th>구분</th><th>이름</th><th></th></tr></thead><tbody>';
   state.members.forEach(function(mb){
-    h += '<tr><td>'+esc(mb.team||'')+'</td><td class="mini">'+esc(mb.role||'')+'</td><td class="name">'+esc(mb.name)+'</td>'
+    var teamSel = '<select class="teamsel" data-team-of="'+mb.id+'" style="width:110px;font-size:.84rem;padding:6px 8px">'
+      + opts.map(function(t){ return '<option value="'+esc(t)+'"'+(t===(mb.team||'')?' selected':'')+'>'+esc(t)+'</option>'; }).join('')
+      + '</select>';
+    h += '<tr><td>'+teamSel+'</td><td class="mini">'+esc(mb.role||'')+'</td><td class="name">'+esc(mb.name)+'</td>'
       + '<td style="text-align:right"><button class="btn danger'+(pendingDel==='mb:'+mb.id?' armed':'')+'" data-delmb="'+mb.id+'">'
       + (pendingDel==='mb:'+mb.id?'한 번 더 누르면 삭제':'삭제')+'</button></td></tr>';
   });
@@ -637,6 +638,15 @@ function bindView(){
   };
   if(nb) nb.addEventListener('click', doAdd);
   if(nn) nn.addEventListener('keydown', function(e){ if(e.key==='Enter'){ doAdd(); } });
+  v.querySelectorAll('[data-team-of]').forEach(function(sel){
+    sel.addEventListener('change', function(){
+      var id = sel.dataset.teamOf;
+      for(var i=0;i<state.members.length;i++){
+        if(state.members[i].id === id){ state.members[i].team = sel.value; break; }
+      }
+      scheduleSave(); render();
+    });
+  });
   v.querySelectorAll('[data-delmb]').forEach(function(b){
     b.addEventListener('click', function(){ delMember(b.dataset.delmb); });
   });

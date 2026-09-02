@@ -190,11 +190,41 @@ function uploadError(err){
   return '업로드 실패';
 }
 
+/* ---------- 명단 팀 ---------- */
+var MEMBER_TEAMS = ['인도자','싱어팀','밴드팀','미디어팀','FD팀'];
+/* 명단을 팀별로 모은다. 배열 순서와 무관하게 팀당 한 묶음만 나온다 */
+function groupByTeam(members){
+  var map = {}, order = [];
+  MEMBER_TEAMS.forEach(function(t){ map[t] = []; order.push(t); });
+  (members||[]).forEach(function(mb){
+    var t = (mb.team || '').trim() || '팀 미지정';
+    if(!map[t]){ map[t] = []; order.push(t); }
+    map[t].push(mb);
+  });
+  return order.filter(function(t){ return map[t].length; })
+              .map(function(t){ return { team:t, members:map[t] }; });
+}
+function membersOfTeam(members, team){
+  return (members||[]).filter(function(mb){ return (mb.team||'') === team; });
+}
+
 /* ---------- 섬김표 ---------- */
+/* dual:true 면 한 파트에 두 명(주담당 + 수습)을 넣을 수 있다 */
 var SERVE_TEAMS = [
-  {key:'singer', label:'싱어팀',   parts:['인도자(무선1번)','1번','2번','3번','4번','5번','6번']},
-  {key:'band',   label:'밴드팀',   parts:['메인건반','세컨건반','일렉기타','베이스기타','드럼','어쿠스틱']},
-  {key:'media',  label:'미디어팀', parts:['자막','음향','조명','사진']}
+  {key:'singer', label:'싱어팀', dual:false, parts:[
+    {name:'인도자(무선1번)', from:'인도자'},
+    {name:'1번', from:'싱어팀'}, {name:'2번', from:'싱어팀'}, {name:'3번', from:'싱어팀'},
+    {name:'4번', from:'싱어팀'}, {name:'5번', from:'싱어팀'}, {name:'6번', from:'싱어팀'}
+  ]},
+  {key:'band', label:'밴드팀', dual:false, parts:[
+    {name:'메인건반', from:'밴드팀'}, {name:'세컨건반', from:'밴드팀'},
+    {name:'일렉기타', from:'밴드팀'}, {name:'베이스기타', from:'밴드팀'},
+    {name:'드럼', from:'밴드팀'}, {name:'어쿠스틱', from:'밴드팀'}
+  ]},
+  {key:'media', label:'미디어팀', dual:true, parts:[
+    {name:'자막', from:'미디어팀'}, {name:'음향', from:'미디어팀'},
+    {name:'조명', from:'미디어팀'}, {name:'사진', from:'미디어팀'}
+  ]}
 ];
 function serveTeam(key){
   for(var i=0;i<SERVE_TEAMS.length;i++) if(SERVE_TEAMS[i].key===key) return SERVE_TEAMS[i];
@@ -206,27 +236,66 @@ function findServe(list, team, date){
   }
   return null;
 }
-/* 다음 일요일 (오늘이 일요일이면 오늘) */
-function nextSunday(){
-  var d = new Date(), p = function(n){ return (n<10?'0':'')+n; };
-  d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
-  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+/* 셀 값은 {m:주담당, s:수습}. 예전 문자열 값도 받아 준다 */
+function cell(slots, part){
+  var v = (slots || {})[part];
+  if(!v) return {m:'', s:''};
+  if(typeof v === 'string') return {m:v, s:''};
+  return {m:v.m || '', s:v.s || ''};
 }
-/* 카카오톡에 붙여넣을 텍스트 */
-function serveText(team, date, slots){
-  var t = serveTeam(team);
+function cellText(slots, part){
+  var c = cell(slots, part);
+  if(!c.m && !c.s) return '';
+  if(c.m && c.s) return c.m + '(' + c.s + ')';
+  return c.m || '(' + c.s + ')';
+}
+
+/* 해당 연·월의 일요일 날짜 목록 */
+function sundaysOf(year, month){
+  var p = function(n){ return (n<10?'0':'')+n; };
+  var d = new Date(year, month-1, 1), out = [];
+  while(d.getDay() !== 0) d.setDate(d.getDate()+1);
+  while(d.getMonth() === month-1){
+    out.push(d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()));
+    d.setDate(d.getDate()+7);
+  }
+  return out;
+}
+function mdLabel(iso){
+  var p = String(iso).split('-');
+  return (+p[1]) + '/' + (+p[2]);
+}
+
+/* 한 주 텍스트 (카카오톡용) */
+function serveText(teamKey, date, slots){
+  var t = serveTeam(teamKey);
   var lines = ['[PW3 예배팀] ' + dateLabel(date) + ' ' + t.label + ' 섬김'];
   var empty = [];
-  for(var i=0;i<t.parts.length;i++){
-    var part = t.parts[i], name = (slots && slots[part] || '').trim();
-    if(name) lines.push(part + ' ' + name);
-    else empty.push(part);
-  }
+  t.parts.forEach(function(pt){
+    var txt = cellText(slots, pt.name);
+    if(txt) lines.push(pt.name + ' ' + txt);
+    else empty.push(pt.name);
+  });
   if(empty.length) lines.push('미정 ' + empty.join(', '));
   return lines.join('\n');
 }
+/* 한 달 표 텍스트 */
+function serveMonthText(teamKey, year, month, serves){
+  var t = serveTeam(teamKey);
+  var out = ['[PW3 예배팀] ' + String(year).slice(2) + '.' + (month<10?'0':'') + month + ' ' + t.label + ' 섬김표'];
+  sundaysOf(year, month).forEach(function(date){
+    var sv = findServe(serves, teamKey, date);
+    var slots = sv ? sv.slots : {};
+    out.push('');
+    out.push(dateLabel(date));
+    t.parts.forEach(function(pt){
+      out.push(pt.name + ' ' + (cellText(slots, pt.name) || '미정'));
+    });
+  });
+  return out.join('\n');
+}
 
-/* ---------- 상단 메뉴 ---------- */
+/* ---------- 상단 메뉴 ---------- *//* ---------- 상단 메뉴 ---------- */
 var MENU = [
   {href:'index.html',      key:'home',       label:'홈'},
   {href:'setlist.html',    key:'setlist',    label:'콘티'},
@@ -247,7 +316,9 @@ function navHTML(active){
 return {
   API:API, apiURL:apiURL, esc:esc, uid:uid, todayISO:todayISO, dateLabel:dateLabel, daysUntil:daysUntil,
   navHTML:navHTML, load:load, safeURL:safeURL, currentByDate:currentByDate,
-  SERVE_TEAMS:SERVE_TEAMS, serveTeam:serveTeam, findServe:findServe, nextSunday:nextSunday, serveText:serveText, saveSection:saveSection, normalize:normalize,
+  MEMBER_TEAMS:MEMBER_TEAMS, groupByTeam:groupByTeam, membersOfTeam:membersOfTeam,
+  SERVE_TEAMS:SERVE_TEAMS, serveTeam:serveTeam, findServe:findServe, serveText:serveText,
+  serveMonthText:serveMonthText, sundaysOf:sundaysOf, mdLabel:mdLabel, cell:cell, cellText:cellText, saveSection:saveSection, normalize:normalize,
   getPin:getPin, setPin:setPin, clearPin:clearPin, hasPin:hasPin, verifyPin:verifyPin, inlinePin:inlinePin,
   uploadFile:uploadFile, uploadError:uploadError, bytesToB64:bytesToB64
 };
