@@ -8,7 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💙</text></svg>">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
-<link rel="stylesheet" href="assets/site.css?v=20260902a">
+<link rel="stylesheet" href="assets/site.css?v=20260902b">
 </head>
 <body>
 <div id="app">
@@ -25,6 +25,7 @@
   <section class="card">
     <h2>콘티 등록 <span class="sub">등록·수정은 리더십 PIN</span></h2>
     <div id="form"></div>
+    <div class="uphint" id="tidyNote"></div>
   </section>
 
   <section class="card">
@@ -36,7 +37,7 @@
   <div id="list"><div class="card"><div class="empty">불러오는 중…</div></div></div>
 </div>
 
-<script src="assets/site.js?v=20260902a"></script>
+<script src="assets/site.js?v=20260902b"></script>
 <script>
 (function(){
 "use strict";
@@ -159,10 +160,46 @@ function bindUpload(fileId, labelId, hintId, targetId, folder, labelText){
   });
 }
 
+/* 붙여넣은 드라이브 링크를 팀 폴더로 정리한다. 실패해도 원래 링크는 유지 */
+var tidyMsgs = [];
+function note(){
+  var el = $('#tidyNote');
+  el.className = 'uphint' + (tidyMsgs.some(function(m){ return m.err; }) ? ' err' : ' ok');
+  el.innerHTML = tidyMsgs.map(function(m){ return esc(m.text); }).join('<br>');
+}
+function tidy(url, folder, label, cb){
+  if(!url || !PW3.isDriveURL(url)){ cb(url); return; }
+  $('#tidyNote').className = 'uphint';
+  $('#tidyNote').textContent = label + ' 드라이브 폴더로 정리 중…';
+  PW3.adoptFile(url, folder, function(err, res){
+    if(err){
+      tidyMsgs.push({err:true, text: label + ' 폴더 정리 실패 — ' + (err.message || '') + ' (링크는 그대로 저장했습니다)'});
+      note(); cb(url); return;
+    }
+    tidyMsgs.push({err:false, text: label + ' 정리 완료 — ' + res.name +
+      (res.moved ? ' · 폴더 이동' : '') + (res.shared ? ' · 공유 설정 적용' : '')});
+    note(); cb(res.url);
+  });
+}
+
 function submit(){
   syncForm();
   var songs = formData.songs.filter(function(x){ return x.title; });
   if(!formData.date || !songs.length){ setStatus('날짜·곡 제목 확인','err'); return; }
+  $('#sGo').disabled = true;
+  setStatus('정리 중…','busy');
+  tidyMsgs = [];
+  tidy(formData.scoreUrl, '콘티 악보', '악보', function(u1){
+    formData.scoreUrl = u1;
+    tidy(formData.cueUrl, '큐시트', '큐시트', function(u2){
+      formData.cueUrl = u2;
+      $('#sGo').disabled = false;
+      commit(songs);
+    });
+  });
+}
+
+function commit(songs){
   if(editId){
     var cur = find(editId);
     if(cur){
