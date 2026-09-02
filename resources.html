@@ -8,7 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💙</text></svg>">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
-<link rel="stylesheet" href="assets/site.css?v=20260902c">
+<link rel="stylesheet" href="assets/site.css?v=20260902d">
 </head>
 <body>
 <div id="app">
@@ -19,7 +19,7 @@
     </h1>
     <span id="saveStatus">불러오는 중…</span>
   </header>
-  <p class="subtitle">콘티 악보와 큐시트는 콘티 등록 시 자동으로 여기 모입니다</p>
+  <p class="subtitle">콘티 악보·큐시트는 콘티 등록 시, 곡별 악보는 분리 도구에서 자동으로 모입니다</p>
   <div id="nav"></div>
 
   <section class="card">
@@ -36,13 +36,13 @@
   </section>
 </div>
 
-<script src="assets/site.js?v=20260902c"></script>
+<script src="assets/site.js?v=20260902d"></script>
 <script>
 (function(){
 "use strict";
 var $ = function(s){ return document.querySelector(s); };
 var esc = PW3.esc;
-var CATS = ['곡별 악보','음원','기타'];
+var MAIN_CAT = '곡별 악보';
 var state = PW3.normalize(null);
 var unlocked = PW3.hasPin();
 var query = '';
@@ -70,8 +70,7 @@ function renderAdd(){
   }
   box.innerHTML =
     '<div class="row">'+
-      '<select id="rCat" style="max-width:130px">'+CATS.map(function(c){ return '<option>'+c+'</option>'; }).join('')+'</select>'+
-      '<input type="text" id="rTitle" class="grow" placeholder="곡명 또는 자료명">'+
+      '<input type="text" id="rTitle" class="grow" placeholder="곡명">'+
     '</div>'+
     '<div class="row" style="margin-top:8px">'+
       '<input type="url" id="rUrl" class="grow" placeholder="링크 (구글드라이브·유튜브 등)">'+
@@ -82,7 +81,7 @@ function renderAdd(){
     var t = $('#rTitle').value.trim(), u = PW3.safeURL($('#rUrl').value);
     if(!t || !u){ setStatus('자료명·링크 확인','err'); return; }
     state.resources.push({
-      id: PW3.uid(), cat:$('#rCat').value, title:t, url:u,
+      id: PW3.uid(), cat:MAIN_CAT, title:t, url:u,
       memo:$('#rMemo').value.trim(), at:Date.now()
     });
     $('#rTitle').value=''; $('#rUrl').value=''; $('#rMemo').value='';
@@ -128,15 +127,23 @@ function renderAll(){
       return itemHTML(PW3.dateLabel(s.date)+' 큐시트', s.cueUrl, '', null);
     }).join('') : '<div class="empty">등록된 큐시트가 없습니다.</div>');
 
-  /* 3. 분류별 수동 등록 자료 */
-  CATS.forEach(function(cat){
-    var items = state.resources
-      .filter(function(r){ return (r.cat||'기타') === cat && hit(r.title + ' ' + (r.memo||'')); })
-      .sort(function(a,b){ return (b.at||0) - (a.at||0); });
-    html += section(cat, items.length,
-      items.length ? items.map(function(r){ return itemHTML(r.title, r.url, r.memo, r.id); }).join('')
-                   : '<div class="empty">'+(query ? '검색 결과가 없습니다.' : '등록된 자료가 없습니다.')+'</div>');
-  });
+  /* 3. 곡별 악보 */
+  var songs = state.resources
+    .filter(function(r){ return (r.cat||MAIN_CAT) === MAIN_CAT && hit(r.title + ' ' + (r.memo||'')); })
+    .sort(function(a,b){ return (b.at||0) - (a.at||0); });
+  html += section(MAIN_CAT, songs.length,
+    songs.length ? songs.map(function(r){ return itemHTML(r.title, r.url, r.memo, r.id); }).join('')
+                 : '<div class="empty">'+(query ? '검색 결과가 없습니다.' : '등록된 자료가 없습니다.')+'</div>',
+    '악보 분리 도구로 나눈 악보가 여기에 쌓입니다.');
+
+  /* 4. 예전에 다른 분류로 등록된 자료가 남아 있으면 그것만 따로 */
+  var others = state.resources
+    .filter(function(r){ return (r.cat||MAIN_CAT) !== MAIN_CAT && hit(r.title + ' ' + (r.memo||'')); })
+    .sort(function(a,b){ return (b.at||0) - (a.at||0); });
+  if(others.length){
+    html += section('그 밖의 자료', others.length,
+      others.map(function(r){ return itemHTML(r.title + ' (' + (r.cat||'') + ')', r.url, r.memo, r.id); }).join(''));
+  }
 
   $('#out').innerHTML = html;
   Array.prototype.forEach.call($('#out').querySelectorAll('[data-del]'), function(b){
