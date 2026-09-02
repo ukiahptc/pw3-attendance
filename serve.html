@@ -8,7 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💙</text></svg>">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
-<link rel="stylesheet" href="assets/site.css?v=20260902j">
+<link rel="stylesheet" href="assets/site.css?v=20260902k">
 <style>
 .tblwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 table.serve{border-collapse:collapse;width:100%;min-width:520px}
@@ -54,7 +54,7 @@ table.serve td.act button{font-size:.76rem;padding:6px 10px}
   </section>
 </div>
 
-<script src="assets/site.js?v=20260902j"></script>
+<script src="assets/site.js?v=20260902k"></script>
 <script>
 (function(){
 "use strict";
@@ -127,7 +127,14 @@ function render(){
 
   if(!unlocked){
     $('#table').innerHTML = '<div id="lock"></div>';
-    PW3.inlinePin($('#lock'), function(){ unlocked = true; render(); }, function(){ render(); });
+    /* PIN 통과 후에는 데이터를 다시 받아야 한다.
+       PIN 없이 받은 축약본에는 명단이 없어서 저장된 이름이 전부 (객원)으로 보인다 */
+    PW3.inlinePin($('#lock'), function(){ location.reload(); }, function(){ render(); });
+    return;
+  }
+  if(!state.members.length && state.serves.length){
+    $('#table').innerHTML = '<div class="empty">명단을 불러오지 못했습니다. 새로고침해 주세요.</div>';
+    setStatus('명단 없음','err');
     return;
   }
   var h = '<table class="serve"><thead><tr><th>섬김 날짜</th>' +

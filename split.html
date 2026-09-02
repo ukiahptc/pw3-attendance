@@ -8,7 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💙</text></svg>">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
-<link rel="stylesheet" href="assets/site.css?v=20260902j">
+<link rel="stylesheet" href="assets/site.css?v=20260902k">
 </head>
 <body>
 <div id="app">
@@ -51,7 +51,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-<script src="assets/site.js?v=20260902j"></script>
+<script src="assets/site.js?v=20260902k"></script>
 <script>
 (function(){
 "use strict";
@@ -79,7 +79,8 @@ function renderPick(){
   if(!unlocked){
     box.innerHTML = '<button id="unlock">시작하기 (PIN)</button>';
     $('#unlock').addEventListener('click', function(){
-      PW3.inlinePin(box, function(){ unlocked = true; renderPick(); }, function(){ renderPick(); });
+      /* PIN 통과 후에는 데이터를 다시 받아야 한다 */
+      PW3.inlinePin(box, function(){ location.reload(); }, function(){ renderPick(); });
     });
     return;
   }
