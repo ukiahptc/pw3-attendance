@@ -123,19 +123,35 @@ function upload_(e) {
    편집기 상단 함수 목록에서 setupDrive 를 고르고 [실행]을 누르면
    드라이브 접근 권한 승인 창이 뜬다. 승인하면 폴더가 만들어지고 업로드가 동작한다. */
 function setupDrive() {
+  var who = Session.getEffectiveUser().getEmail();
+  Logger.log('이 스크립트가 실행되는 계정: ' + who);
   var root = rootFolder_();
   subFolder_('콘티 악보');
   subFolder_('큐시트');
   subFolder_('곡별 악보');
-  Logger.log('준비 완료 — ' + root.getName() + ' (' + root.getUrl() + ')');
+  Logger.log('준비 완료 — 폴더 "' + root.getName() + '"');
+  Logger.log(root.getUrl());
+  Logger.log('업로드된 파일의 소유자는 ' + who + ' 가 됩니다.');
   return root.getUrl();
+}
+
+/* 스크립트가 어느 계정으로 도는지만 확인하고 싶을 때 실행 */
+function whoAmI() {
+  var who = Session.getEffectiveUser().getEmail();
+  Logger.log('실행 계정: ' + who);
+  return who;
 }
 
 function rootFolder_() {
   var props = PropertiesService.getScriptProperties();
   var id = props.getProperty('FOLDER_ID');
   if (id) {
-    try { return DriveApp.getFolderById(id); } catch (err) { /* 삭제됐으면 새로 만든다 */ }
+    /* 지정한 폴더에 못 들어가면 조용히 다른 폴더를 쓰지 않고 바로 알린다 */
+    try { return DriveApp.getFolderById(id); }
+    catch (err) {
+      throw new Error('FOLDER_ID 폴더에 접근할 수 없습니다. 그 폴더를 ' +
+        Session.getEffectiveUser().getEmail() + ' 계정에 편집자로 공유했는지 확인하세요. (FOLDER_ID=' + id + ')');
+    }
   }
   var it = DriveApp.getFoldersByName(ROOT_FOLDER_NAME);
   var f = it.hasNext() ? it.next() : DriveApp.createFolder(ROOT_FOLDER_NAME);
