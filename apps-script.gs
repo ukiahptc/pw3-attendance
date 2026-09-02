@@ -1,8 +1,6 @@
 var SHEET_NAME = 'DATA';
 var CHUNK = 40000;
 var ROOT_FOLDER_NAME = 'PW3 예배팀 자료';
-/* 이미 쓰는 예배팀 폴더가 있으면 그 폴더 ID를 스크립트 속성 FOLDER_ID 에 넣으면 된다.
-   비워두면 위 이름으로 새 폴더를 만들어 쓴다. */
 
 /* PIN은 코드에 쓰지 않는다. 프로젝트 설정 > 스크립트 속성에 PIN 이름으로 저장.
    속성이 비어 있으면 기존처럼 전부 공개된다(사이트가 죽지 않도록 한 안전장치). */
@@ -66,7 +64,6 @@ function doPost(e) {
   if (!pinOK_(e)) return out_({ ok: false, error: 'pin' });
   var mode = e && e.parameter && e.parameter.mode;
   if (mode === 'upload') return upload_(e);
-  if (mode === 'adopt')  return adopt_(e);
   return saveState_(e);
 }
 
@@ -132,41 +129,6 @@ function setupDrive() {
   subFolder_('곡별 악보');
   Logger.log('준비 완료 — ' + root.getName() + ' (' + root.getUrl() + ')');
   return root.getUrl();
-}
-
-/* ---------- 이미 드라이브에 있는 파일을 폴더로 정리 ---------- */
-/* 본문 형식: {"url":"https://drive.google.com/file/d/.../view","folder":"콘티 악보"} */
-function adopt_(e) {
-  var body = e && e.postData && e.postData.contents;
-  if (!body) return out_({ ok: false, error: 'empty' });
-  var req;
-  try { req = JSON.parse(body); } catch (err) { return out_({ ok: false, error: 'invalid json' }); }
-
-  var id = driveId_(req.url || req.id || '');
-  if (!id) return out_({ ok: false, error: '드라이브 파일 주소가 아닙니다' });
-
-  var file;
-  try { file = DriveApp.getFileById(id); }
-  catch (err) { return out_({ ok: false, error: '파일에 접근할 수 없습니다 (소유자가 아니거나 삭제됨)' }); }
-
-  var moved = false;
-  try { file.moveTo(subFolder_(req.folder || '기타')); moved = true; } catch (err) { /* 이동 실패해도 계속 */ }
-  var shared = false;
-  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); shared = true; } catch (err) {}
-
-  return out_({
-    ok: true, id: id, name: file.getName(), moved: moved, shared: shared,
-    url: 'https://drive.google.com/file/d/' + id + '/view'
-  });
-}
-function driveId_(u) {
-  u = String(u || '');
-  var m = u.match(/\/d\/([A-Za-z0-9_-]{20,})/);
-  if (m) return m[1];
-  m = u.match(/[?&]id=([A-Za-z0-9_-]{20,})/);
-  if (m) return m[1];
-  m = u.match(/^([A-Za-z0-9_-]{20,})$/);
-  return m ? m[1] : '';
 }
 
 function rootFolder_() {

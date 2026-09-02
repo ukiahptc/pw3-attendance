@@ -181,22 +181,6 @@ function uploadFile(file, folder, cb){
   reader.onerror = function(){ cb(new Error('read')); };
   reader.readAsDataURL(file);
 }
-/* 이미 드라이브에 있는 파일을 팀 폴더로 정리하고 공유 설정을 고친다. cb(err, res) */
-function adoptFile(url, folder, cb){
-  if(!hasPin()){ cb(new Error('pin')); return; }
-  fetch(apiURL('mode=adopt'), {
-    method:'POST',
-    body: JSON.stringify({ url:url, folder:folder||'기타' })
-  })
-    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
-    .then(function(res){
-      if(!res || !res.ok) throw new Error(res && res.error ? res.error : 'adopt');
-      cb(null, res);
-    })
-    .catch(function(err){ cb(err instanceof Error ? err : new Error('adopt')); });
-}
-function isDriveURL(u){ return /drive\.google\.com/.test(String(u||'')); }
-
 function uploadError(err){
   var m = err && err.message;
   if(m === 'pin')  return 'PIN이 필요합니다';
@@ -226,7 +210,6 @@ return {
   API:API, apiURL:apiURL, esc:esc, uid:uid, todayISO:todayISO, dateLabel:dateLabel, daysUntil:daysUntil,
   navHTML:navHTML, load:load, safeURL:safeURL, currentByDate:currentByDate, saveSection:saveSection, normalize:normalize,
   getPin:getPin, setPin:setPin, clearPin:clearPin, hasPin:hasPin, verifyPin:verifyPin, inlinePin:inlinePin,
-  uploadFile:uploadFile, uploadError:uploadError, bytesToB64:bytesToB64,
-  adoptFile:adoptFile, isDriveURL:isDriveURL
+  uploadFile:uploadFile, uploadError:uploadError, bytesToB64:bytesToB64
 };
 })();
