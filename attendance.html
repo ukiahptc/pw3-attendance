@@ -5,10 +5,18 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex">
 <title>출결부 · PW3 예배팀</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💙</text></svg>">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PW3">
+<meta name="theme-color" content="#f2f4f6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101014" media="(prefers-color-scheme: dark)">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
-<link rel="stylesheet" href="assets/site.css?v=20260902k">
+<link rel="stylesheet" href="assets/site.css?v=20260911a">
 <style>
 :root{
   --bg:#f2f4f6;
@@ -157,6 +165,19 @@ input[type="checkbox"]{width:17px;height:17px;accent-color:var(--accent);cursor:
   .card{padding:16px 14px}
   td,th{padding:8px 6px}
   .wm{font-size:1.8rem}
+  /* 출결 체크: 표 대신 사람별 카드형 배치 */
+  .checktable thead{display:none}
+  .checktable, .checktable tbody{display:block;width:100%}
+  .checktable tr{display:block;padding:10px 0;border-bottom:1px solid var(--line)}
+  .checktable tr:last-child{border-bottom:none}
+  .checktable td{display:block;width:100%;border-bottom:none;padding:3px 0}
+  .checktable td.ncell{font-size:.98rem}
+  .checktable tr.teamrow{border-bottom:none;padding:14px 0 2px}
+  .checktable tr.teamrow td{padding:0}
+  .checktable .seg{display:flex;width:100%}
+  .checktable .seg button{flex:1;padding:11px 0;font-size:.9rem}
+  .checktable td.dcell .mini{display:none}
+  .checktable td.dcell:has(.mini:only-child){display:none}
 }
 #gate{position:fixed;inset:0;background:var(--bg);z-index:99;overflow:auto;padding:36px 16px}
 #gate .lock{max-width:340px;margin:24px auto;text-align:center;background:var(--surface);border-radius:20px;padding:28px 22px;box-shadow:var(--shadow)}
@@ -177,7 +198,10 @@ input[type="checkbox"]{width:17px;height:17px;accent-color:var(--accent);cursor:
       <a href="index.html" class="wm" style="text-decoration:none"><span class="lp">P</span><span class="lw">W</span><span class="l3">3</span><span class="spark">✦</span></a>
       토요모임 출결부
     </h1>
-    <span id="saveStatus">불러오는 중…</span>
+    <span style="display:flex;gap:8px;align-items:center">
+      <span id="saveStatus">불러오는 중…</span>
+      <button class="btn" id="btnLock" style="display:none;padding:6px 12px;font-size:.78rem">🔒 잠금</button>
+    </span>
   </header>
   <p class="subtitle">서파3부 예배팀 · 격주 토요일 11:00–13:00</p>
   <div id="banner"></div>
@@ -191,12 +215,19 @@ input[type="checkbox"]{width:17px;height:17px;accent-color:var(--accent);cursor:
   <main id="view"></main>
 </div>
 
-<script src="assets/site.js?v=20260902k"></script>
+<script src="assets/site.js?v=20260911a"></script>
 <script>
 (function(){
   document.getElementById("sitenav").innerHTML = PW3.navHTML("attendance");
   var g = document.getElementById("gate");
-  if(PW3.hasPin()){ g.parentNode.removeChild(g); return; }
+  if(PW3.hasPin()){
+    g.parentNode.removeChild(g);
+    /* 이 기기에서 PIN 기억을 지우고 잠그는 버튼 */
+    var lk = document.getElementById("btnLock");
+    lk.style.display = "";
+    lk.addEventListener("click", function(){ PW3.clearPin(); location.reload(); });
+    return;
+  }
   g.innerHTML = '<div class="lock">'+
     '<div class="ico">🔒</div>'+
     '<h2 style="margin:10px 0 0">출결부</h2>'+
@@ -432,18 +463,18 @@ function renderCheck(){
     h += '<div class="empty">명단이 비어 있습니다. [명단 관리] 탭에서 팀원을 먼저 추가해 주세요.</div></div>';
     return h;
   }
-  h += '<div class="tscroll"><table><thead><tr><th>이름</th><th>출결</th><th>상세</th></tr></thead><tbody>';
+  h += '<div class="tscroll"><table class="checktable"><thead><tr><th>이름</th><th>출결</th><th>상세</th></tr></thead><tbody>';
   var groups = PW3.groupByTeam(state.members);
   groups.forEach(function(grp){
   h += '<tr class="teamrow"><td colspan="3">'+esc(grp.team)+'</td></tr>';
   grp.members.forEach(function(mb){
     var r = (m.records||{})[mb.id] || {s:null,reason:'',lateTime:'',lateReason:''};
-    h += '<tr><td class="name">'+esc(mb.name)+'<span class="role">'+esc(mb.role||'')+'</span></td><td>'
+    h += '<tr><td class="name ncell">'+esc(mb.name)+'<span class="role">'+esc(mb.role||'')+'</span></td><td class="scell">'
       + '<span class="seg">'
       + '<button class="p'+(r.s==='p'?' on':'')+'" data-att="p" data-mb="'+mb.id+'">참석</button>'
       + '<button class="l'+(r.s==='l'?' on':'')+'" data-att="l" data-mb="'+mb.id+'">지각</button>'
       + '<button class="a'+(r.s==='a'?' on':'')+'" data-att="a" data-mb="'+mb.id+'">불참</button>'
-      + '</span></td><td>';
+      + '</span></td><td class="dcell">';
     if(r.s==='a'){
       h += '<input class="reason" type="text" data-reason="'+mb.id+'" value="'+esc(r.reason)+'" placeholder="불참 사유 입력">';
     } else if(r.s==='l'){

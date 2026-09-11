@@ -47,9 +47,19 @@ function daysUntil(iso){
 }
 
 /* ---------- PIN ---------- */
-function getPin(){ try{ return sessionStorage.getItem('pw3-pin') || ''; }catch(e){ return ''; } }
-function setPin(p){ try{ sessionStorage.setItem('pw3-pin', p); }catch(e){} }
-function clearPin(){ try{ sessionStorage.removeItem('pw3-pin'); }catch(e){} }
+/* 기기에 기억한다(localStorage). 홈 화면 앱은 열 때마다 세션이 초기화되므로
+   sessionStorage면 매번 PIN을 다시 물어보게 된다. 예전 세션 값은 자동 이관. */
+function getPin(){
+  try{
+    var p = localStorage.getItem('pw3-pin');
+    if(p) return p;
+    p = sessionStorage.getItem('pw3-pin');
+    if(p) localStorage.setItem('pw3-pin', p);
+    return p || '';
+  }catch(e){ return ''; }
+}
+function setPin(p){ try{ localStorage.setItem('pw3-pin', p); }catch(e){} }
+function clearPin(){ try{ localStorage.removeItem('pw3-pin'); sessionStorage.removeItem('pw3-pin'); }catch(e){} }
 function hasPin(){ return getPin() !== ''; }
 
 function apiURL(extra){
