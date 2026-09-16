@@ -178,7 +178,11 @@ function uploadFile(file, folder, cb){
       })
       .catch(function(err){ cb(err instanceof Error ? err : new Error('upload')); });
   }
-  if(file.bytes){
+  /* 악보 분리 도구가 주는 {name, bytes:Uint8Array}만 이 경로로.
+     최신 브라우저는 모든 파일에 bytes()라는 내장 함수가 있어서
+     단순히 if(file.bytes)로 검사하면 일반 파일이 여기로 잘못 빠져
+     내용이 빈 채(no file) 전송된다. */
+  if(file.bytes instanceof Uint8Array){
     if(file.bytes.length > MAX_UPLOAD){ cb(new Error('size')); return; }
     send(file.name, 'application/pdf', bytesToB64(file.bytes));
     return;
