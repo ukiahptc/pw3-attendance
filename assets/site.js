@@ -197,7 +197,9 @@ function uploadError(err){
   if(m === 'pin')  return 'PIN이 필요합니다';
   if(m === 'size') return '파일이 20MB를 넘습니다';
   if(m === 'read') return '파일을 읽지 못했습니다';
-  return '업로드 실패';
+  if(!m || m === 'upload') return '업로드 실패';
+  /* 서버가 알려준 실제 원인을 그대로 보여준다 (용량 초과, 폴더 접근 불가 등) */
+  return '업로드 실패 — ' + String(m).slice(0, 200);
 }
 
 /* ---------- 명단 팀 ---------- */
