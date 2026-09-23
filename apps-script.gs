@@ -25,9 +25,15 @@ function readAll_() {
   return json || '{}';
 }
 
-/* 개인정보만 제거한 공개용 데이터.
+/* 공개용 데이터.
    공개: 모임 날짜, 공지, 행사, 콘티 전체(곡·유튜브·악보·큐시트 링크), 섬김표, 자료실 전체
-   비공개: 명단(members), 출결 기록·사유(meetings[].records) */
+   비공개: 명단(members), 출결 기록·사유(meetings[].records)
+
+   ※ 섬김표(serves)의 슬롯에는 팀원 실명이 들어간다. 이걸 PIN 없이 내려보내는 것은
+      홈 화면의 '금주 섬김'을 비로그인 팀원도 보게 하려는 의도적 결정이다.
+      따라서 이 응답은 개인정보가 전혀 없는 데이터가 아니다. members를 감췄다고 해서
+      이름까지 비공개가 되는 것은 아니라는 점을 전제하고 다룰 것.
+      이름을 가려야 한다면 serves도 PIN 뒤로 옮기거나 공개용으로만 이니셜 처리해야 한다. */
 function publicView_(json) {
   var s;
   try { s = JSON.parse(json); } catch (err) {
