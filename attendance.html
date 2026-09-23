@@ -323,7 +323,12 @@ function doSave(){
     .catch(function(){ return null; })
     .then(function(remote){
       if(remote){
-        ['notice','events','resources'].forEach(function(k){
+        /* 출결부가 소유한 것은 members·meetings 뿐이다. 나머지 섹션은 다른 페이지가
+           고치므로, 저장 직전에 서버 값으로 되돌려 놓아야 통째로 덮어쓰지 않는다.
+           여기서 빠뜨린 섹션은 이 페이지를 열어 둔 사이에 다른 사람이 편집한 내용이
+           소리 없이 되돌아간다. site.js의 normalize()에 섹션을 추가하면
+           이 목록에도 반드시 같이 추가할 것. */
+        ['notice','events','resources','setlists','serves'].forEach(function(k){
           if(remote[k] !== undefined) state[k] = remote[k];
         });
       }
