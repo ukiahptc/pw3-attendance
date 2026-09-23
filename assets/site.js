@@ -59,7 +59,16 @@ function getPin(){
   }catch(e){ return ''; }
 }
 function setPin(p){ try{ localStorage.setItem('pw3-pin', p); }catch(e){} }
-function clearPin(){ try{ localStorage.removeItem('pw3-pin'); sessionStorage.removeItem('pw3-pin'); }catch(e){} }
+/* 잠글 때는 PIN뿐 아니라 기기에 남은 출결 백업도 함께 지운다.
+   pw3-backup에는 명단·출결 기록·결석 사유가 평문으로 들어 있어서,
+   이걸 남기면 공용 PC에서 잠그고 나가도 다음 사람이 PIN 없이 읽을 수 있다. */
+function clearPin(){
+  try{
+    localStorage.removeItem('pw3-pin');
+    sessionStorage.removeItem('pw3-pin');
+    localStorage.removeItem('pw3-backup');
+  }catch(e){}
+}
 function hasPin(){ return getPin() !== ''; }
 
 function apiURL(extra){
