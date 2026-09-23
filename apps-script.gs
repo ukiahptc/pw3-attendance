@@ -1,17 +1,52 @@
 var SHEET_NAME = 'DATA';
+var BACKUP_SHEET = 'BACKUP';
 var CHUNK = 40000;
 var ROOT_FOLDER_NAME = 'PW3 예배팀 자료';
+
+/* 덮어쓰기 직전 상태를 이 간격으로 한 세대만 남긴다.
+   자동저장이 잦아서(출결부는 1.5초 디바운스) 매번 백업하면 쓰기 할당량을 먹는다. */
+var BACKUP_INTERVAL_MS = 10 * 60 * 1000;
+
+/* 업로드 제한. site.js에도 같은 검사가 있지만 그건 화면 편의일 뿐이고,
+   API를 직접 부르면 그대로 통과한다. 실제 제한은 이 파일에서 건다. */
+var UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
+var UPLOAD_FOLDERS = { '콘티 악보': 1, '큐시트': 1, '곡별 악보': 1, '기타': 1 };
+
+/* PIN 실패 시 지연. 자세한 배경은 pinOK_ 주석 참고. */
+var FAIL_WINDOW_SEC = 600;
+var FAIL_DELAY_MS = 1000;
+var FAIL_DELAY_MAX_MS = 5000;
 
 /* PIN은 코드에 쓰지 않는다. 프로젝트 설정 > 스크립트 속성에 PIN 이름으로 저장.
    속성이 비어 있으면 기존처럼 전부 공개된다(사이트가 죽지 않도록 한 안전장치). */
 function getPin_() {
   return String(PropertiesService.getScriptProperties().getProperty('PIN') || '');
 }
+/* PIN 대입 속도를 늦춘다.
+   Apps Script 웹앱은 호출자의 IP를 알 수 없어 기기별 차단을 만들 수 없다.
+   전역 잠금(N회 실패 시 차단)도 쓰지 않는다 — 아무나 일부러 실패시켜
+   팀 전체를 못 쓰게 만들 수 있기 때문이다. 대신 실패할 때마다 응답을 지연시켜
+   시도 속도 자체를 떨어뜨린다.
+
+   ※ 이것만으로는 충분하지 않다. 결정적인 방어는 PIN 길이다.
+      4자리 숫자는 경우의 수가 1만뿐이라 이 지연을 걸어도 오래 버티지 못한다.
+      스크립트 속성의 PIN을 영문+숫자 8자리 이상으로 바꿔 두는 것이 본 방어다. */
 function pinOK_(e) {
   var want = getPin_();
   if (!want) return true;
-  var got = e && e.parameter && e.parameter.pin;
-  return String(got || '') === want;
+  var got = String((e && e.parameter && e.parameter.pin) || '');
+  if (got === want) return true;
+
+  /* PIN을 아예 안 보낸 요청은 '공개 화면 보기'다. 실패로 세지 않는다.
+     세면 로그인하지 않은 일반 방문자 때문에 지연이 계속 올라간다. */
+  if (got === '') return false;
+
+  var cache = CacheService.getScriptCache();
+  var n = Number(cache.get('pinfail') || 0) + 1;
+  cache.put('pinfail', String(n), FAIL_WINDOW_SEC);
+  console.warn('PIN 실패 ' + n + '회 (최근 ' + (FAIL_WINDOW_SEC / 60) + '분)');
+  Utilities.sleep(Math.min(FAIL_DELAY_MAX_MS, FAIL_DELAY_MS * n));
+  return false;
 }
 
 function readAll_() {
@@ -90,14 +125,83 @@ function saveState_(e) {
   lock.waitLock(10000);
   try {
     var sh = getSheet_();
-    sh.clearContents();
+    snapshotIfDue_(sh);
+
+    var prevLast = sh.getLastRow();
     var rows = [];
     for (var i = 0; i < body.length; i += CHUNK) rows.push([body.substring(i, i + CHUNK)]);
+
+    /* 새 값을 먼저 쓰고, 남는 옛 행만 지운다.
+       먼저 clearContents를 하면 그 다음 쓰기가 실패했을 때(실행 시간 초과, 할당량)
+       시트가 빈 채로 남아 DB 전체가 사라진다. 이 순서면 그 구간이 없다. */
     sh.getRange(1, 1, rows.length, 1).setValues(rows);
+    if (prevLast > rows.length) {
+      sh.getRange(rows.length + 1, 1, prevLast - rows.length, 1).clearContent();
+    }
   } finally {
     lock.releaseLock();
   }
   return out_({ ok: true });
+}
+
+/* 덮어쓰기 직전 상태를 BACKUP 시트에 한 세대 남긴다.
+   이 스프레드시트가 유일한 저장소라, 잘못된 상태를 저장했을 때
+   되돌릴 방법이 이것뿐이다. 실패해도 저장 자체는 막지 않는다. */
+function snapshotIfDue_(sh) {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    if (Date.now() - Number(props.getProperty('BACKUP_AT') || 0) < BACKUP_INTERVAL_MS) return;
+
+    var last = sh.getLastRow();
+    if (!last) return;
+    var vals = sh.getRange(1, 1, last, 1).getValues();
+    var prev = '';
+    for (var i = 0; i < vals.length; i++) prev += vals[i][0];
+    if (!prev || prev === '{}') return;
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var bk = ss.getSheetByName(BACKUP_SHEET) || ss.insertSheet(BACKUP_SHEET);
+    bk.clearContents();
+    var rows = [['PW3 백업 · ' + new Date().toISOString() + ' · 되돌리려면 restoreFromBackup 실행']];
+    for (var j = 0; j < prev.length; j += CHUNK) rows.push([prev.substring(j, j + CHUNK)]);
+    bk.getRange(1, 1, rows.length, 1).setValues(rows);
+    props.setProperty('BACKUP_AT', String(Date.now()));
+  } catch (err) {
+    console.warn('백업 실패(저장은 계속 진행): ' + err);
+  }
+}
+
+/* ===== 수동 복구 =====
+   편집기 상단 함수 목록에서 restoreFromBackup 을 고르고 [실행].
+   BACKUP 시트의 내용을 DATA로 되돌린다.
+   ※ 되돌리기 전의 DATA는 사라진다. 실행 전에 DATA 시트를 복사해 두는 편이 안전하다. */
+function restoreFromBackup() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var bk = ss.getSheetByName(BACKUP_SHEET);
+  if (!bk) throw new Error('BACKUP 시트가 없습니다. 아직 백업이 만들어지지 않았습니다.');
+  var last = bk.getLastRow();
+  if (last < 2) throw new Error('BACKUP 시트가 비어 있습니다.');
+
+  var label = String(bk.getRange(1, 1).getValue());
+  var vals = bk.getRange(2, 1, last - 1, 1).getValues();
+  var json = '';
+  for (var i = 0; i < vals.length; i++) json += vals[i][0];
+
+  /* 깨진 백업으로 멀쩡한 데이터를 덮어쓰지 않도록 먼저 검증한다 */
+  var parsed = JSON.parse(json);
+  if (!parsed || !parsed.members) throw new Error('백업에 members가 없습니다. 복구를 중단합니다.');
+
+  var sh = getSheet_();
+  var prevLast = sh.getLastRow();
+  var rows = [];
+  for (var j = 0; j < json.length; j += CHUNK) rows.push([json.substring(j, j + CHUNK)]);
+  sh.getRange(1, 1, rows.length, 1).setValues(rows);
+  if (prevLast > rows.length) {
+    sh.getRange(rows.length + 1, 1, prevLast - rows.length, 1).clearContent();
+  }
+
+  Logger.log('복구 완료 — ' + label);
+  return label;
 }
 
 /* ---------- 파일 업로드 ---------- */
@@ -109,10 +213,26 @@ function upload_(e) {
   try { req = JSON.parse(body); } catch (err) { return out_({ ok: false, error: 'invalid json' }); }
   if (!req.data || !req.name) return out_({ ok: false, error: 'no file' });
 
+  /* 형식·폴더·크기 검사. PIN을 아는 사람만 여기까지 오지만, PIN은 팀 전체가
+     공유하는 값이라 이것까지 통과하면 소유자 계정의 드라이브가 임의 파일
+     공개 호스팅으로 쓰일 수 있다(업로드 파일은 아래에서 링크 공개로 바뀐다). */
+  var mime = String(req.mime || 'application/pdf');
+  if (mime !== 'application/pdf' && mime.indexOf('image/') !== 0) {
+    return out_({ ok: false, error: '허용하지 않는 형식입니다 (' + mime.slice(0, 60) + ')' });
+  }
+  var folderName = String(req.folder || '기타');
+  if (!UPLOAD_FOLDERS[folderName]) {
+    return out_({ ok: false, error: '허용하지 않는 폴더입니다 (' + folderName.slice(0, 40) + ')' });
+  }
+  var safeName = String(req.name).replace(/[\r\n\t]/g, ' ').slice(0, 120);
+
   try {
     var bytes = Utilities.base64Decode(req.data);
-    var blob = Utilities.newBlob(bytes, req.mime || 'application/pdf', req.name);
-    var folder = subFolder_(req.folder || '기타');
+    if (bytes.length > UPLOAD_MAX_BYTES) {
+      return out_({ ok: false, error: '파일이 ' + Math.round(UPLOAD_MAX_BYTES / 1048576) + 'MB를 넘습니다' });
+    }
+    var blob = Utilities.newBlob(bytes, mime, safeName);
+    var folder = subFolder_(folderName);
     var file = folder.createFile(blob);
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     return out_({
