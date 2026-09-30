@@ -64,8 +64,137 @@ function save(){
 }
 function ytLabel(u){ return /youtu/i.test(u) ? '유튜브' : '링크'; }
 
+/* ---------- 카톡 콘티 파서 ---------- */
+/* 카톡으로 받은 콘티 메시지에서 날짜·곡 제목·유튜브 링크·악보 링크를 발라낸다 */
+function parseKakao(text){
+  var URL_RE = /(https?:\/\/[^\s<>()\[\]"']+)/g;
+  var MARKER_RE = /^\s*(?:\d{1,2}\s*[.)]\s*|[①②③④⑤⑥⑦⑧⑨⑩]\s*|[-•●◦▪▫◆◇■□★☆*·♪♬➤▶✔✅]\s*|[◾◽]️?\s*)+/;
+  var KEY_RE = /\s*[\(\[]?\s*[A-G][#♯b♭]?m?\s*(?:키|key)?\s*[\)\]]?\s*$/;
+
+  function pad(n){ return (n<10?'0':'')+n; }
+  function iso(y,m,d){ return y+'-'+pad(m)+'-'+pad(d); }
+  function valid(m,d){ return m>=1 && m<=12 && d>=1 && d<=31; }
+
+  var today = new Date(); today.setHours(0,0,0,0);
+  var lines = String(text||'').replace(/\r/g,'').split('\n').map(function(l){ return l.trim(); });
+
+  /* 날짜: 앞쪽 6줄에서만 찾는다 (곡 번호 "1. "을 날짜로 오인하지 않게) */
+  var date = null, dateFound = false;
+  for(var i=0; i<lines.length && i<6 && !date; i++){
+    var L = lines[i], m;
+    m = L.match(/(20\d{2})\s*[.\-\/년]\s*(\d{1,2})\s*[.\-\/월]\s*(\d{1,2})/);
+    if(m && valid(+m[2],+m[3])){ date = iso(+m[1],+m[2],+m[3]); break; }
+    m = L.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일?/);
+    if(!m) m = L.match(/(\d{1,2})\s*\/\s*(\d{1,2})/);
+    if(!m) m = L.match(/(\d{1,2})\.(\d{1,2})(?!\d)/);
+    if(m && valid(+m[1],+m[2])){
+      var y = today.getFullYear();
+      var cand = new Date(y, +m[1]-1, +m[2]);
+      /* 90일 넘게 과거면 내년 날짜로 본다 (연말·연초 대비) */
+      if(cand.getTime() < today.getTime() - 90*86400000) y++;
+      date = iso(y, +m[1], +m[2]);
+    }
+  }
+  if(date) dateFound = true;
+  else {
+    /* 못 찾으면 다가오는 일요일 */
+    var d2 = new Date(today.getTime());
+    while(d2.getDay() !== 0) d2.setDate(d2.getDate()+1);
+    date = iso(d2.getFullYear(), d2.getMonth()+1, d2.getDate());
+  }
+
+  var rows = lines.map(function(L){
+    var urls = L.match(URL_RE) || [];
+    var t = L.replace(URL_RE, '').trim();
+    return { raw:L, urls:urls, text:t, marker: MARKER_RE.test(L) && t.replace(MARKER_RE,'').trim() !== '' };
+  });
+  function cleanTitle(t){
+    t = t.replace(MARKER_RE, '').trim();
+    t = t.replace(KEY_RE, '').trim();
+    t = t.replace(/^["'「]|["'」]$/g, '').trim();
+    return t;
+  }
+  function isScoreUrl(u){ return /drive\.google|\.pdf(\?|$)/i.test(u); }
+
+  var songs = [], scoreUrl = '';
+  function takeUrl(u){
+    if(isScoreUrl(u)){ if(!scoreUrl) scoreUrl = u; return null; }
+    return u;
+  }
+
+  var markerIdx = [];
+  rows.forEach(function(r, i){ if(r.marker) markerIdx.push(i); });
+
+  if(markerIdx.length){
+    /* 1순위: 번호·불릿 붙은 줄 = 곡. 링크는 같은 줄 또는 바로 다음의 링크 전용 줄 */
+    markerIdx.forEach(function(i, k){
+      var r = rows[i];
+      var title = cleanTitle(r.text);
+      if(!title) return;
+      var url = '';
+      for(var u=0; u<r.urls.length && !url; u++){ url = takeUrl(r.urls[u]) || ''; }
+      if(!url){
+        var next = markerIdx[k+1] !== undefined ? markerIdx[k+1] : rows.length;
+        for(var j=i+1; j<next && !url; j++){
+          if(rows[j].text === '' && rows[j].urls.length){
+            for(var u2=0; u2<rows[j].urls.length && !url; u2++){ url = takeUrl(rows[j].urls[u2]) || ''; }
+          } else if(rows[j].raw !== '') break;
+        }
+      }
+      songs.push({title:title, url:url});
+    });
+  } else {
+    /* 2순위: 링크 기준 — 링크 줄의 제목은 같은 줄 텍스트 또는 바로 위 줄 */
+    var used = {};
+    rows.forEach(function(r, i){
+      if(!r.urls.length) return;
+      var url = '';
+      for(var u=0; u<r.urls.length && !url; u++){ url = takeUrl(r.urls[u]) || ''; }
+      if(!url) return;   /* 전부 악보 링크였던 경우 */
+      var title = cleanTitle(r.text);
+      if(!title){
+        for(var j=i-1; j>=0; j--){
+          if(used[j]) break;
+          if(rows[j].text && !rows[j].urls.length){
+            if(j === 0 && dateFound && /월|\/|\d{1,2}\./.test(rows[j].raw)) break;
+            title = cleanTitle(rows[j].text); used[j] = true;
+          }
+          break;
+        }
+      }
+      if(title) songs.push({title:title, url:url});
+    });
+    /* 3순위: 링크도 번호도 없으면 인사말·날짜 줄을 뺀 짧은 줄을 곡으로 */
+    if(!songs.length){
+      var skipRe = /콘티|찬양\s*(리스트|목록)|샬롬|안녕|입니다|악보|큐시트|공지/;
+      rows.forEach(function(r, i){
+        if(!r.text || r.urls.length) return;
+        if(skipRe.test(r.text)) return;
+        if(dateFound && i < 6 && /(\d{1,2})\s*[월\/.]\s*(\d{1,2})/.test(r.raw)) return;
+        if(r.text.length > 40) return;
+        var t = cleanTitle(r.text);
+        if(t) songs.push({title:t, url:''});
+      });
+      songs = songs.slice(0, 10);
+    }
+  }
+
+  /* 곡 줄에 안 붙은 드라이브·PDF 링크도 놓치지 않고 악보/큐시트로 분류 */
+  var cueUrl = '';
+  rows.forEach(function(r){
+    r.urls.forEach(function(u){
+      if(!isScoreUrl(u)) return;
+      if(/큐시트|cue/i.test(r.text)){ if(!cueUrl) cueUrl = u; }
+      else if(!scoreUrl) scoreUrl = u;
+    });
+  });
+
+  return { date: date, dateFound: dateFound, songs: songs, scoreUrl: scoreUrl, cueUrl: cueUrl };
+}
+
 /* ---------- 등록 폼 ---------- */
 var formData = null;   /* {date, songs:[{title,url}], scoreUrl, cueUrl} */
+var kOpen = false, kHint = '', kHintCls = 'ok';
 
 function blankForm(){
   return { date: PW3.todayISO(),
@@ -100,7 +229,22 @@ function renderForm(){
   }
   if(!formData) formData = blankForm();
 
-  var h = '<div class="row" style="margin-bottom:12px">'+
+  var h = '';
+  if(kOpen){
+    h += '<div style="margin-bottom:14px">'+
+           '<textarea id="kText" placeholder="카톡으로 받은 콘티 메시지를 그대로 붙여넣으세요"></textarea>'+
+           '<div class="row" style="margin-top:8px">'+
+             '<button class="primary" id="kGo">자동으로 채우기</button>'+
+             '<button class="ghost" id="kClose">닫기</button>'+
+           '</div>';
+  } else {
+    h += '<div style="margin-bottom:12px">'+
+           '<button id="kToggle">💬 카톡 콘티 붙여넣어 자동 입력</button>';
+  }
+  if(kHint) h += '<div class="uphint '+kHintCls+'">'+esc(kHint)+'</div>';
+  h += '</div>';
+
+  h += '<div class="row" style="margin-bottom:12px">'+
             '<input type="date" id="sDate" style="max-width:180px" value="'+esc(formData.date)+'">'+
             (editId ? '<span style="color:var(--accent);font-size:.82rem;font-weight:700">수정 중</span>' : '')+
           '</div>';
@@ -134,6 +278,35 @@ function renderForm(){
        '</div>';
   box.innerHTML = h;
 
+  if($('#kToggle')) $('#kToggle').addEventListener('click', function(){
+    syncForm(); kOpen = true; kHint = ''; renderForm();
+    if($('#kText')) $('#kText').focus();
+  });
+  if($('#kClose')) $('#kClose').addEventListener('click', function(){
+    syncForm(); kOpen = false; kHint = ''; renderForm();
+  });
+  if($('#kGo')) $('#kGo').addEventListener('click', function(){
+    var txt = $('#kText').value;
+    if(!txt.trim()) return;
+    var r = parseKakao(txt);
+    syncForm();
+    if(!r.songs.length){
+      kHint = '곡을 찾지 못했습니다. 곡마다 한 줄씩(번호나 링크가 있으면 더 정확) 붙여넣어 주세요.';
+      kHintCls = 'err'; renderForm(); return;
+    }
+    formData.date = r.date;
+    formData.songs = r.songs;
+    if(r.scoreUrl && !formData.scoreUrl) formData.scoreUrl = r.scoreUrl;
+    if(r.cueUrl && !formData.cueUrl) formData.cueUrl = r.cueUrl;
+    var withUrl = r.songs.filter(function(s){ return s.url; }).length;
+    kHint = '곡 ' + r.songs.length + '개' + (withUrl ? ' (링크 ' + withUrl + '개)' : '') + ' 인식'
+      + ' · 날짜 ' + PW3.dateLabel(r.date) + (r.dateFound ? '' : ' (메시지에 날짜가 없어 다가오는 주일로 설정)')
+      + (r.scoreUrl ? ' · 악보 링크 자동 입력' : '')
+      + (r.cueUrl ? ' · 큐시트 링크 자동 입력' : '')
+      + ' — 아래에서 확인·수정 후 등록하세요';
+    kHintCls = 'ok'; kOpen = false;
+    renderForm();
+  });
   $('#addRow').addEventListener('click', function(){
     syncForm(); formData.songs.push({title:'',url:''}); renderForm();
   });
