@@ -72,8 +72,8 @@
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="assets/site.js?v=20261011a"></script>
-<script src="assets/ocr.js?v=20261011a"></script>
-<script src="assets/archive.js?v=20261011a"></script>
+<script src="assets/ocr.js?v=20261011b"></script>
+<script src="assets/archive.js?v=20261011b"></script>
 <script>
 (function(){
 "use strict";
@@ -355,9 +355,15 @@ function runOCR(){
       ocrHint('('+num+'/'+pageCount+') '+num+'페이지 읽는 중…');
       pageNote(num, '읽는 중…');
       return textLayerLines(num).then(function(r){
-        if(PW3OCR.textLayerUsable(r.lines)) return r;
+        var usable = PW3OCR.textLayerUsable(r.lines);
+        if(usable && !PW3OCR.needsOCR(r.lines, r.pageHeight, contiSongs)) return r;
         usedOcr++;
-        return ocrLines(num, function(t){ ocrHint('('+num+'/'+pageCount+') '+t); });
+        return ocrLines(num, function(t){ ocrHint('('+num+'/'+pageCount+') '+t); }).then(function(o){
+          if(!usable) return o;
+          /* 글자 레이어에 키("Ckey")는 있고 제목은 없는 PDF가 있다. 둘을 합쳐 판정한다 */
+          var factor = o.pageHeight ? r.pageHeight / o.pageHeight : 1;
+          return { lines: r.lines.concat(PW3OCR.scaleLines(o.lines, factor)), pageHeight: r.pageHeight };
+        });
       }).catch(function(){ return { lines: [], pageHeight: 0 }; })
         .then(function(r){ pages.push(r); pageNote(num, ''); });
     };

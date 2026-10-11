@@ -48,14 +48,14 @@ function listSongs(){
     .then(function(rows){ return Array.isArray(rows) ? rows : []; });
 }
 /* 제목이 가장 닮은 곡. {song, score}
-   '은혜'와 '은혜였소'처럼 짧은 제목은 포함 관계로도 닮게 나오므로,
-   한쪽이 3자 이하면 정규화한 글자가 똑같을 때만 같은 곡으로 본다 */
+   포함 관계는 쓰지 않는다 ("We Praise You" ≠ "Praise", "은혜였소" ≠ "은혜").
+   짧은 제목(3자 이하)은 정규화한 글자가 똑같을 때만 같은 곡으로 본다 */
 function findSong(songs, title){
   var nt = PW3OCR.norm(title), best = { song: null, score: 0 };
   (songs || []).forEach(function(s){
     var ns = PW3OCR.norm(s.title), sc;
     if(Math.min(ns.length, nt.length) <= 3) sc = (ns === nt && nt) ? 1 : 0;
-    else sc = PW3OCR.sim(s.title, title);
+    else sc = PW3OCR.dice(s.title, title);
     if(sc > best.score) best = { song: s, score: sc };
   });
   return best.score >= SIM_MIN ? best : { song: null, score: best.score };
