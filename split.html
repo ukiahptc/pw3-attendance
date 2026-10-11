@@ -27,7 +27,7 @@
     </h1>
     <span id="saveStatus">불러오는 중…</span>
   </header>
-  <p class="subtitle">콘티 악보 PDF를 곡마다 잘라 자료실에 아카이빙합니다</p>
+  <p class="subtitle">콘티 악보 PDF를 곡마다 잘라 자료실과 찬양보관함에 아카이빙합니다</p>
   <div id="nav"></div>
 
   <section class="card">
@@ -49,6 +49,12 @@
       <input type="date" id="fromDate" style="max-width:180px">
       <span class="uphint" style="margin:0">어느 콘티의 악보인지 (선택)</span>
     </div>
+    <div style="margin-top:14px">
+      <label style="display:flex;align-items:center;gap:8px;font-size:.88rem;font-weight:700;cursor:pointer">
+        <input type="checkbox" id="toArchive" checked> 찬양보관함에도 등록
+      </label>
+      <div class="uphint" style="margin-top:4px">키를 고른 곡만 들어갑니다. 같은 곡에 같은 키 악보가 이미 있으면 건너뜁니다.</div>
+    </div>
     <div class="row" style="margin-top:12px">
       <button class="primary" id="go">나누어 업로드</button>
       <button class="ghost" id="reset">처음부터</button>
@@ -59,7 +65,7 @@
   <section class="card" id="done" style="display:none">
     <h2>완료</h2>
     <div id="result" class="list"></div>
-    <div class="filebtns"><a class="filebtn" href="resources.html">자료실에서 보기</a></div>
+    <div class="filebtns"><a class="filebtn" href="resources.html">자료실에서 보기</a><a class="filebtn" id="archiveLink" href="https://ukiahptc.github.io/praise-archive/" target="_blank" rel="noopener noreferrer">찬양보관함 열기</a></div>
   </section>
 </div>
 
@@ -67,6 +73,7 @@
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="assets/site.js?v=20261011a"></script>
 <script src="assets/ocr.js?v=20261011a"></script>
+<script src="assets/archive.js?v=20261011a"></script>
 <script>
 (function(){
 "use strict";
@@ -424,6 +431,11 @@ function renderPlan(){
 }
 
 /* ---------- 3. 분리 + 업로드 ---------- */
+/* 보관함 등록 체크는 기기에 기억한다 */
+try{ if(localStorage.getItem('pw3-archive') === '0') $('#toArchive').checked = false; }catch(e){}
+$('#toArchive').addEventListener('change', function(){
+  try{ localStorage.setItem('pw3-archive', this.checked ? '1' : '0'); }catch(e){}
+});
 $('#go').addEventListener('click', function(){
   var segs = segments();
   if(!segs.length){ prog('곡 시작 페이지를 체크해 주세요.','err'); return; }
@@ -437,7 +449,19 @@ $('#reset').addEventListener('click', function(){ location.reload(); });
 function runSplit(segs){
   var made = [];
   var fromDate = $('#fromDate').value || contiDate;
-  PDFLib.PDFDocument.load(srcBytes).then(function(src){
+  var toArchive = $('#toArchive').checked;
+  var archiveSongs = null, archiveErr = null;   /* 보관함 곡 목록. 못 받으면 보관함 등록은 전부 실패 처리 */
+  var prep = toArchive
+    ? PW3ARCHIVE.listSongs().then(function(list){ archiveSongs = list; })
+        .catch(function(err){ archiveErr = err; })
+    : Promise.resolve();
+  function archive(seg, bytes){
+    if(!toArchive) return Promise.resolve(null);
+    if(archiveErr) return Promise.resolve({ error: '보관함 목록을 못 받아 넣지 않음 — ' + archiveErr.message });
+    return PW3ARCHIVE.register(archiveSongs, seg.title, seg.key, bytes)
+      .catch(function(err){ return { error: '보관함 등록 실패 — ' + (err && err.message || err) }; });
+  }
+  prep.then(function(){ return PDFLib.PDFDocument.load(srcBytes); }).then(function(src){
     var chain = Promise.resolve();
     segs.forEach(function(seg, idx){
       chain = chain.then(function(){
@@ -452,9 +476,12 @@ function runSplit(segs){
         }).then(function(bytes){
           return new Promise(function(resolve){
             PW3.uploadFile({name: seg.title + '.pdf', bytes: bytes}, '곡별 악보', function(err, res){
-              if(err){ made.push({title: seg.title, error: PW3.uploadError(err)}); }
-              else { made.push({title: seg.title, key: seg.key, url: res.url, name: res.name, pages: seg.from+'–'+seg.to}); }
-              resolve();
+              if(err){ made.push({title: seg.title, error: PW3.uploadError(err)}); resolve(); return; }
+              var m = {title: seg.title, key: seg.key, url: res.url, name: res.name,
+                       pages: seg.from === seg.to ? String(seg.from) : seg.from+'–'+seg.to};
+              made.push(m);
+              /* 드라이브에 올라간 뒤 같은 바이트를 보관함에도 넣는다. 보관함 실패는 드라이브 결과를 막지 않는다 */
+              archive(seg, bytes).then(function(a){ m.archive = a; resolve(); });
             });
           });
         });
@@ -478,12 +505,16 @@ function runSplit(segs){
       setStatus('저장됨');
       $('#done').style.display = '';
       $('#result').innerHTML = made.map(function(m){
+        var a = m.archive, aHtml = '';
+        if(a && a.error) aHtml = '<div class="m"><span style="color:var(--bad);font-weight:700">'+esc(a.error)+'</span></div>';
+        else if(a) aHtml = '<div class="m">'+esc(PW3ARCHIVE.statusText(a))+
+          (a.url ? ' · <a href="'+esc(a.url)+'" target="_blank" rel="noopener noreferrer">보관함에서 보기</a>' : '')+'</div>';
         return '<div class="item"><div>'+
-          '<div class="t">'+esc(m.title)+'</div>'+
+          '<div class="t">'+esc(m.title)+(m.key ? ' <span class="sub">'+esc(m.key.replace(/b/g,'♭').replace(/#/g,'♯'))+'</span>' : '')+'</div>'+
           '<div class="m">'+(m.url
-            ? '<a href="'+esc(m.url)+'" target="_blank" rel="noopener noreferrer">링크 열기</a> · '+esc(m.pages)+'페이지'
+            ? '<a href="'+esc(m.url)+'" target="_blank" rel="noopener noreferrer">드라이브 링크</a> · '+esc(m.pages)+'페이지'
             : '<span style="color:var(--bad);font-weight:700">'+esc(m.error)+'</span>')+
-          '</div></div></div>';
+          '</div>'+aHtml+'</div></div>';
       }).join('');
       $('#done').scrollIntoView({behavior:'smooth'});
     });
