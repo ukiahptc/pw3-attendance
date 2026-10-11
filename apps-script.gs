@@ -12,6 +12,11 @@ var BACKUP_INTERVAL_MS = 10 * 60 * 1000;
 var UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
 var UPLOAD_FOLDERS = { '콘티 악보': 1, '큐시트': 1, '곡별 악보': 1, '기타': 1 };
 
+/* 파일 내려주기(mode=file)에서 base64를 한 번에 보내는 글자 수.
+   응답이 너무 크면 Apps Script가 잘라 버리거나 실패하므로 조각으로 나눠 보낸다.
+   2,000,000자 ≈ 1.5MB. 4의 배수여야 조각 하나만으로도 디코딩이 된다. */
+var FILE_PART_CHARS = 2000000;
+
 /* PIN 실패 시 지연. 자세한 배경은 pinOK_ 주석 참고. */
 var FAIL_WINDOW_SEC = 600;
 var FAIL_DELAY_MS = 1000;
@@ -93,6 +98,10 @@ function publicView_(json) {
 function doGet(e) {
   if (e && e.parameter && e.parameter.probe) {
     return out_({ ok: true, pinOK: pinOK_(e), configured: getPin_() !== '' });
+  }
+  if (e && e.parameter && e.parameter.mode === 'file') {
+    if (!pinOK_(e)) return out_({ ok: false, error: 'pin' });
+    return fetchFile_(e);
   }
   var json = readAll_();
   if (pinOK_(e)) {
@@ -244,6 +253,46 @@ function upload_(e) {
   } catch (err) {
     return out_({ ok: false, error: String(err) });
   }
+}
+
+/* ---------- 올린 파일 내려주기 ---------- */
+/* 악보 분리 도구가 콘티에 등록된 악보 PDF를 다시 받아올 때 쓴다.
+   브라우저에서 드라이브 링크를 직접 fetch하면 CORS로 막히므로 여기서 중계한다.
+     ?mode=file&id=<드라이브 파일 id>&part=<n>
+   응답: {ok, name, mime, size, parts, part, data(base64 조각)}
+   part를 0부터 parts-1까지 차례로 받아 이어 붙이면 원본이 된다.
+
+   보안: PIN을 아는 사람이 소유자 드라이브의 아무 파일이나 id로 꺼내 가지 못하도록
+   이 사이트가 만든 폴더(루트와 그 바로 아래 하위 폴더) 안의 PDF만 허용한다. */
+function fetchFile_(e) {
+  var id = String(e.parameter.id || '');
+  var part = Number(e.parameter.part || 0);
+  if (!/^[\w-]{10,}$/.test(id)) return out_({ ok: false, error: 'bad id' });
+
+  var file;
+  try { file = DriveApp.getFileById(id); }
+  catch (err) { return out_({ ok: false, error: 'not found' }); }
+  if (!inOurFolder_(file)) return out_({ ok: false, error: 'not ours' });
+  if (file.getMimeType() !== 'application/pdf') return out_({ ok: false, error: 'not pdf' });
+  if (file.getSize() > UPLOAD_MAX_BYTES) return out_({ ok: false, error: 'too big' });
+
+  var b64 = Utilities.base64Encode(file.getBlob().getBytes());
+  var parts = Math.max(1, Math.ceil(b64.length / FILE_PART_CHARS));
+  if (!(part >= 0 && part < parts)) return out_({ ok: false, error: 'bad part' });
+  return out_({
+    ok: true, name: file.getName(), mime: 'application/pdf', size: file.getSize(),
+    parts: parts, part: part, data: b64.substr(part * FILE_PART_CHARS, FILE_PART_CHARS)
+  });
+}
+function inOurFolder_(file) {
+  var root = rootFolder_();
+  var ok = {};
+  ok[root.getId()] = true;
+  var subs = root.getFolders();
+  while (subs.hasNext()) ok[subs.next().getId()] = true;
+  var ps = file.getParents();
+  while (ps.hasNext()) if (ok[ps.next().getId()]) return true;
+  return false;
 }
 
 /* ===== 최초 1회만 실행 =====

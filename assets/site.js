@@ -205,6 +205,50 @@ function uploadFile(file, folder, cb){
   reader.onerror = function(){ cb(new Error('read')); };
   reader.readAsDataURL(file);
 }
+/* ---------- 올린 파일 다시 받기 ---------- */
+/* 드라이브 링크에서 파일 id를 뽑는다. 사이트에서 올린 링크는 /file/d/<id>/view 꼴 */
+function driveFileId(url){
+  var u = String(url||'');
+  var m = u.match(/\/file\/d\/([\w-]+)/) || u.match(/[?&]id=([\w-]+)/);
+  return m ? m[1] : '';
+}
+function b64ToBytes(b64){
+  var bin = atob(b64), out = new Uint8Array(bin.length);
+  for(var i=0;i<bin.length;i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+/* 사이트에서 올린 드라이브 PDF를 Apps Script를 거쳐 받아온다 (직접 fetch는 CORS로 막힘).
+   서버가 base64를 조각으로 주므로 끝까지 모아 이어 붙인다.
+   cb(err, {name, bytes:Uint8Array}) · onProg(받은 조각 수, 전체 조각 수) */
+function downloadFile(id, cb, onProg){
+  if(!hasPin()){ cb(new Error('pin')); return; }
+  if(!id){ cb(new Error('bad id')); return; }
+  var chunks = [], name = '';
+  (function next(part){
+    fetch(apiURL('mode=file&id='+encodeURIComponent(id)+'&part='+part), {cache:'no-store'})
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(res){
+        if(!res || !res.ok) throw new Error(res && res.error ? res.error : 'download');
+        chunks.push(res.data); name = res.name;
+        if(onProg) onProg(part+1, res.parts);
+        if(part+1 < res.parts) next(part+1);
+        else cb(null, {name:name, bytes:b64ToBytes(chunks.join(''))});
+      })
+      .catch(function(err){ cb(err instanceof Error ? err : new Error('download')); });
+  })(0);
+}
+function downloadError(err){
+  var m = err && err.message;
+  if(m === 'pin')       return 'PIN이 필요합니다';
+  if(m === 'not ours')  return '사이트에서 올린 파일이 아니라 불러올 수 없습니다. 파일을 직접 선택해 주세요';
+  if(m === 'not found') return '드라이브에서 파일을 찾지 못했습니다 (삭제됐거나 권한 없음)';
+  if(m === 'not pdf')   return 'PDF 파일이 아닙니다';
+  if(m === 'too big')   return '파일이 20MB를 넘습니다';
+  if(m === 'bad id')    return '드라이브 링크가 아닙니다';
+  if(!m || m === 'download') return '불러오기 실패';
+  return '불러오기 실패 — ' + String(m).slice(0, 200);
+}
+
 function uploadError(err){
   var m = err && err.message;
   if(m === 'pin')  return 'PIN이 필요합니다';
@@ -349,6 +393,7 @@ return {
   SERVE_TEAMS:SERVE_TEAMS, serveTeam:serveTeam, findServe:findServe, serveText:serveText,
   serveMonthText:serveMonthText, sundaysOf:sundaysOf, mdLabel:mdLabel, cell:cell, cellText:cellText, saveSection:saveSection, normalize:normalize,
   getPin:getPin, setPin:setPin, clearPin:clearPin, hasPin:hasPin, verifyPin:verifyPin, inlinePin:inlinePin,
-  uploadFile:uploadFile, uploadError:uploadError, bytesToB64:bytesToB64
+  uploadFile:uploadFile, uploadError:uploadError, bytesToB64:bytesToB64,
+  driveFileId:driveFileId, downloadFile:downloadFile, downloadError:downloadError, b64ToBytes:b64ToBytes
 };
 })();
