@@ -20,6 +20,13 @@ function linesOf(text){
     .map(function(l){ return l.trim(); })
     .filter(Boolean);
 }
+/* 빈 줄을 기준으로 묶음(연)으로 나눈다. 한 장은 묶음을 넘어가지 않는다.
+   "3줄 / 빈 줄 / 4줄" 이면 두 줄씩 잘라 2-1-2-2 가 된다 */
+function blocksOf(text){
+  return String(text||'').replace(/\r/g,'').split(/\n\s*\n/)
+    .map(function(b){ return linesOf(b); })
+    .filter(function(b){ return b.length; });
+}
 
 /* 배치 순서. 비어 있으면 파트를 적은 순서 */
 function sequence(lyrics){
@@ -44,10 +51,11 @@ function build(lyrics, opts){
   ((lyrics && lyrics.sections) || []).forEach(function(s){ map[s.id] = s; });
   sequence(lyrics).forEach(function(id){
     var s = map[id]; if(!s) return;
-    var ls = linesOf(s.text);
-    if(!ls.length) return;
     var chunks = [];
-    for(var i=0;i<ls.length;i+=per) chunks.push(ls.slice(i, i+per));
+    blocksOf(s.text).forEach(function(ls){
+      for(var i=0;i<ls.length;i+=per) chunks.push(ls.slice(i, i+per));
+    });
+    if(!chunks.length) return;
     chunks.forEach(function(c, k){
       out.push({ kind:'lyric', label:String(s.label||s.type||''), lines:c, sectionId:s.id, partIndex:k, partCount:chunks.length });
     });
@@ -66,6 +74,6 @@ function partStarts(slides){
   return out;
 }
 
-return { youtubeId:youtubeId, linesOf:linesOf, sequence:sequence, build:build, partStarts:partStarts };
+return { youtubeId:youtubeId, linesOf:linesOf, blocksOf:blocksOf, sequence:sequence, build:build, partStarts:partStarts };
 })();
 if(typeof module !== 'undefined' && module.exports) module.exports = PW3SLIDES;
