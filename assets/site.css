@@ -166,9 +166,7 @@ label.filepick.busy{background:var(--surface2);color:var(--muted);cursor:default
 .copied{color:var(--accent);font-weight:700;font-size:.82rem;margin-top:8px;min-height:18px}
 
 /* ---------- 자막 연습 ---------- */
-.playgrid{display:flex;flex-direction:column;gap:12px}
-@media (min-width:860px){ .playgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start} .playgrid .ytwrap{max-width:none} }
-.ytwrap{position:relative;width:100%;max-width:640px;aspect-ratio:16/9;background:#000;border-radius:14px;overflow:hidden;margin:0 auto}
+.ytwrap{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:14px;overflow:hidden;margin-bottom:12px}
 .ytwrap iframe,.ytwrap #yt{position:absolute;inset:0;width:100%;height:100%}
 .ytwrap .ytmsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#ddd;font-size:.88rem;text-align:center;padding:16px}
 .screen{position:relative;width:100%;aspect-ratio:16/9;background:#000;color:#fff;border-radius:14px;overflow:hidden;margin-top:0;
@@ -178,10 +176,20 @@ label.filepick.busy{background:var(--surface2);color:var(--muted);cursor:default
 .screen.blank .ln{visibility:hidden}
 .screen .tag{position:absolute;left:12px;top:10px;font-size:.72rem;font-weight:700;color:rgba(255,255,255,.55)}
 .screen .cnt{position:absolute;right:12px;top:10px;font-size:.72rem;font-weight:700;color:rgba(255,255,255,.55)}
-.nextbox{margin-top:10px;background:var(--surface2);border-radius:12px;padding:10px 14px;min-height:54px}
-.nextbox .lab{font-size:.72rem;font-weight:800;color:var(--muted);margin-bottom:4px}
-.nextbox .ln{display:block;font-size:.95rem;font-weight:600;line-height:1.5}
-.nextbox.end .ln{color:var(--muted)}
+/* 배치 만들기 */
+.arrsteps{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;min-height:34px}
+.arrsteps .step{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:var(--surface2);font-size:.82rem;font-weight:700}
+.arrsteps .step i{font-style:normal;color:var(--muted);font-size:.72rem}
+.arrsteps .step button{background:none;padding:0 2px;font-size:.78rem;color:var(--muted);line-height:1}
+/* 전체 자막 목록 */
+.slidelist{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin-top:12px}
+.slidelist .sl{background:var(--surface2);border-radius:12px;padding:10px 12px;border:2px solid transparent;cursor:pointer}
+.slidelist .sl .lab{font-size:.7rem;font-weight:800;color:var(--muted);margin-bottom:4px}
+.slidelist .sl .ln{display:block;font-size:.9rem;font-weight:600;line-height:1.45}
+.slidelist .sl.on{border-color:var(--accent);background:var(--accent-soft)}
+.slidelist .sl.on .lab{color:var(--accent)}
+.slidelist .sl.nx{border-color:var(--line);border-style:dashed}
+.slidelist .sl.ttl .ln{color:var(--warn)}
 .parts{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
 .parts button{font-size:.8rem;padding:7px 11px}
 .parts button.on{background:var(--accent);color:var(--on-accent)}
@@ -191,4 +199,6 @@ label.filepick.busy{background:var(--surface2);color:var(--muted);cursor:default
 .plist .st{font-size:.78rem;font-weight:700;margin-top:3px}
 .plist .st.ok{color:var(--accent)} .plist .st.no{color:var(--bad)} .plist .st.warn{color:var(--warn)}
 .keyhint{font-size:.78rem;color:var(--muted);margin-top:10px}
-@media (max-width:560px){ .keyhint{display:none} }
+@media (max-width:560px){ .keyhint{display:none} .slidelist{grid-template-columns:1fr 1fr} .slidelist .sl .ln{font-size:.82rem} }
+/* 넓은 화면에서는 영상이 이미 크므로 자막 화면은 납작하게 (영상·자막·목록이 한 화면에 들어오게) */
+@media (min-width:860px){ .screen{aspect-ratio:21/9} .screen .ln{font-size:2rem} }
