@@ -42,9 +42,11 @@ function api(path, opt){
   });
 }
 
-/* 전체 곡 목록 (id, title, 키별 악보). 분리 작업 시작 때 한 번만 받는다 */
-function listSongs(){
-  return api('/rest/v1/songs?select=id,title,sheets(music_key,ord)', { headers: headers() })
+/* 전체 곡 목록 (id, title, 키별 악보). 분리 작업 시작 때 한 번만 받는다.
+   withLyrics=true 면 가사(lyrics)도 함께 받는다 — 자막 연습 페이지용 */
+function listSongs(withLyrics){
+  var sel = 'id,title,sheets(music_key,ord)' + (withLyrics ? ',lyrics' : '');
+  return api('/rest/v1/songs?select=' + sel, { headers: headers() })
     .then(function(rows){ return Array.isArray(rows) ? rows : []; });
 }
 /* 제목이 가장 닮은 곡. {song, score}
