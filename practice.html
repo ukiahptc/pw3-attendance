@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>자막 연습 · PW3 예배팀</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PW3">
+<meta name="theme-color" content="#f2f4f6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101014" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
+<link rel="stylesheet" href="assets/site.css?v=20261108a">
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <h1>
+      <a href="index.html" class="wm" style="text-decoration:none"><span class="lp">P</span><span class="lw">W</span><span class="l3">3</span><span class="spark">✦</span></a>
+      자막 연습
+    </h1>
+    <span id="saveStatus">불러오는 중…</span>
+  </header>
+  <p class="subtitle">유튜브로 곡을 틀어 놓고 주일처럼 가사를 한 장씩 넘겨 봅니다</p>
+  <div id="nav"></div>
+
+  <section class="card" id="pickCard">
+    <h2>곡 고르기 <span class="sub">가사는 찬양보관함에서 가져옵니다</span></h2>
+    <div class="row" style="margin-bottom:12px">
+      <select id="conti" style="max-width:260px"></select>
+      <span class="uphint" id="archHint" style="margin:0"></span>
+    </div>
+    <div id="songs" class="list plist"><div class="empty">불러오는 중…</div></div>
+  </section>
+
+  <section class="card" id="playCard" style="display:none">
+    <div class="row" style="justify-content:space-between;margin-bottom:12px">
+      <h2 style="margin:0" id="pTitle"></h2>
+      <div class="row">
+        <button class="ghost" id="restart">↺ 다시하기</button>
+        <button class="ghost" id="back">목록으로</button>
+      </div>
+    </div>
+    <div class="playgrid">
+      <div class="ytwrap" id="ytwrap"><div id="yt"></div></div>
+      <div>
+        <div class="screen" id="screen" title="눌러서 다음 장">
+          <span class="tag" id="sTag"></span><span class="cnt" id="sCnt"></span>
+          <div id="sLines"></div>
+        </div>
+        <div class="nextbox" id="nextbox"><div class="lab">다음</div><div id="nLines"></div></div>
+      </div>
+    </div>
+    <div class="parts" id="parts"></div>
+    <div class="ctl">
+      <button id="prev">◀ 이전</button>
+      <button class="primary" id="next">다음 ▶</button>
+    </div>
+    <div class="keyhint">스페이스·→ 다음 장 · ← 이전 장 · B 검은 화면 · 화면을 눌러도 넘어갑니다</div>
+  </section>
+</div>
+
+<script src="assets/site.js?v=20261108a"></script>
+<script src="assets/ocr.js?v=20261011b"></script>
+<script src="assets/archive.js?v=20261108a"></script>
+<script src="assets/slides.js?v=20261108a"></script>
+<script>
+(function(){
+"use strict";
+var $ = function(s){ return document.querySelector(s); };
+var esc = PW3.esc;
+var PER_SLIDE = 2;                 /* 주일 자막과 같게 한 장 두 줄 */
+var CACHE_KEY = 'pw3-practice-lyrics';
+var state = PW3.normalize(null);
+var archive = [];                  /* 보관함 곡 (가사 포함) */
+var archiveErr = '';
+var cur = null;                    /* { title, slides, idx, blank, videoId } */
+var player = null, ytReady = false, ytLoading = false;
+
+$('#nav').innerHTML = PW3.navHTML('practice');
+function setStatus(t, cls){ var el=$('#saveStatus'); el.textContent=t; el.className=cls||''; }
+
+/* ---------- 보관함 가사: 받아서 기기에 캐시. 못 받으면 캐시로 ---------- */
+function loadArchive(cb){
+  var cached = null;
+  try{ cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); }catch(e){}
+  PW3ARCHIVE.listSongs(true).then(function(rows){
+    archive = rows;
+    try{ localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), rows: rows })); }catch(e){}
+    cb();
+  }).catch(function(err){
+    if(cached && cached.rows){ archive = cached.rows; archiveErr = '보관함에 연결하지 못해 ' + PW3.dateLabel(new Date(cached.at).toISOString().slice(0,10)) + ' 받아 둔 가사를 씁니다'; }
+    else archiveErr = '보관함에 연결하지 못했습니다 — ' + (err && err.message || err);
+    cb();
+  });
+}
+function hasLyrics(song){ return !!(song && song.lyrics && song.lyrics.sections && song.lyrics.sections.length); }
+/* 콘티 곡 제목으로 보관함 곡 찾기. 가사 있는 곡을 먼저 찾고, 없으면 가사 없는 곡이라도 알려 준다 */
+function matchSong(title){
+  var withL = archive.filter(hasLyrics);
+  var f = PW3ARCHIVE.findSong(withL, title);
+  if(f.song) return { song: f.song, lyrics: true };
+  f = PW3ARCHIVE.findSong(archive, title);
+  return { song: f.song, lyrics: false };
+}
+
+/* ---------- 콘티 고르기 ---------- */
+function setlistsDesc(){
+  return state.setlists.slice().sort(function(a,b){ return a.date < b.date ? 1 : -1; });
+}
+function renderPicker(){
+  var ls = setlistsDesc();
+  var sel = $('#conti');
+  if(!ls.length){
+    sel.innerHTML = '<option value="">콘티 없음</option>';
+    $('#songs').innerHTML = '<div class="empty">등록된 콘티가 없습니다. 콘티 페이지에서 먼저 등록해 주세요.</div>';
+    return;
+  }
+  var current = PW3.currentByDate(state.setlists);
+  sel.innerHTML = ls.map(function(sl){
+    return '<option value="'+esc(sl.id)+'"'+(current && sl.id===current.id ? ' selected' : '')+'>'+
+      esc(PW3.dateLabel(sl.date))+' 콘티 · 곡 '+(sl.songs||[]).length+'개</option>';
+  }).join('');
+  $('#archHint').textContent = archiveErr || ('보관함 '+archive.length+'곡 · 가사 있는 곡 '+archive.filter(hasLyrics).length+'개');
+  $('#archHint').className = 'uphint' + (archiveErr ? ' err' : '');
+  renderSongs();
+}
+function selectedSetlist(){
+  var id = $('#conti').value;
+  for(var i=0;i<state.setlists.length;i++) if(state.setlists[i].id===id) return state.setlists[i];
+  return null;
+}
+function renderSongs(){
+  var sl = selectedSetlist();
+  var box = $('#songs');
+  if(!sl){ box.innerHTML = '<div class="empty">콘티를 고르세요.</div>'; return; }
+  var songs = sl.songs || [];
+  if(!songs.length){ box.innerHTML = '<div class="empty">이 콘티에 곡이 없습니다.</div>'; return; }
+  box.innerHTML = songs.map(function(sg, i){
+    var m = matchSong(sg.title);
+    var vid = PW3SLIDES.youtubeId(sg.url);
+    var st, cls, can = false, link = '';
+    if(m.song && m.lyrics){
+      var n = PW3SLIDES.build(m.song.lyrics, {perSlide:PER_SLIDE, title:m.song.title}).length;
+      st = '가사 '+n+'장' + (vid ? '' : ' · 유튜브 링크 없음 (영상 없이 넘기기만)'); cls = vid ? 'ok' : 'warn'; can = true;
+    } else if(m.song){
+      st = '보관함에 곡은 있지만 가사가 없습니다'; cls = 'no';
+      link = PW3ARCHIVE.CFG.site + '#/edit/' + encodeURIComponent(m.song.id);
+    } else {
+      st = '보관함에 없는 곡입니다'; cls = 'no';
+      link = PW3ARCHIVE.CFG.site + '#/new';
+    }
+    return '<div class="item"><div style="min-width:0">'+
+        '<div class="t">'+(i+1)+'. '+esc(sg.title)+'</div>'+
+        '<div class="st '+cls+'">'+esc(st)+(link ? ' · <a href="'+esc(link)+'" target="_blank" rel="noopener noreferrer">보관함에서 가사 입력</a>' : '')+'</div>'+
+      '</div>'+
+      '<button class="primary" data-play="'+i+'"'+(can ? '' : ' disabled')+'>연습</button>'+
+    '</div>';
+  }).join('');
+  Array.prototype.forEach.call(box.querySelectorAll('[data-play]'), function(b){
+    b.addEventListener('click', function(){ startPractice(sl, songs[+b.dataset.play]); });
+  });
+}
+$('#conti').addEventListener('change', renderSongs);
+
+/* ---------- 유튜브 플레이어 ---------- */
+function loadYT(cb){
+  if(window.YT && window.YT.Player){ cb(); return; }
+  var prev = window.onYouTubeIframeAPIReady;
+  window.onYouTubeIframeAPIReady = function(){ if(prev) try{ prev(); }catch(e){} cb(); };
+  if(ytLoading) return;
+  ytLoading = true;
+  var s = document.createElement('script');
+  s.src = 'https://www.youtube.com/iframe_api';
+  s.onerror = function(){ ytMsg('유튜브를 불러오지 못했습니다. 영상 없이 넘기기만 연습합니다.'); };
+  document.head.appendChild(s);
+}
+function ytMsg(t){
+  var w = $('#ytwrap');
+  w.innerHTML = '<div id="yt"></div>' + (t ? '<div class="ytmsg">'+esc(t)+'</div>' : '');
+}
+function mountPlayer(videoId){
+  if(player){ try{ player.destroy(); }catch(e){} player = null; }
+  ytMsg(videoId ? '' : '이 곡에는 유튜브 링크가 없습니다. 영상 없이 넘기기만 연습합니다.');
+  if(!videoId) return;
+  loadYT(function(){
+    if(!cur || cur.videoId !== videoId) return;
+    player = new YT.Player('yt', {
+      videoId: videoId,
+      playerVars: { rel:0, playsinline:1, modestbranding:1 },
+      events: {
+        onReady: function(){ ytReady = true; },
+        onError: function(e){
+          var code = e && e.data;
+          /* 101·150 = 다른 사이트 삽입을 막아 둔 영상 */
+          ytMsg(code === 101 || code === 150
+            ? '이 영상은 다른 사이트에서 재생할 수 없게 설정돼 있습니다. 콘티에 다른 링크를 넣어 주세요. 지금은 영상 없이 넘기기만 연습합니다.'
+            : '영상을 재생할 수 없습니다 (오류 '+code+'). 영상 없이 넘기기만 연습합니다.');
+        }
+      }
+    });
+  });
+}
+
+/* ---------- 연습 ---------- */
+function startPractice(sl, sg){
+  var m = matchSong(sg.title);
+  if(!m.song || !m.lyrics) return;
+  cur = {
+    title: m.song.title,
+    slides: PW3SLIDES.build(m.song.lyrics, {perSlide:PER_SLIDE, title:m.song.title}),
+    idx: 0, blank: false,
+    videoId: PW3SLIDES.youtubeId(sg.url)
+  };
+  cur.parts = PW3SLIDES.partStarts(cur.slides);
+  $('#pTitle').textContent = cur.title;
+  $('#pickCard').style.display = 'none';
+  $('#playCard').style.display = '';
+  ytReady = false;
+  mountPlayer(cur.videoId);
+  renderSlide();
+  window.scrollTo({top:0});
+}
+function endPractice(){
+  cur = null;
+  if(player){ try{ player.destroy(); }catch(e){} player = null; }
+  $('#playCard').style.display = 'none';
+  $('#pickCard').style.display = '';
+}
+function go(n){
+  if(!cur) return;
+  n = Math.max(0, Math.min(cur.slides.length - 1, n));
+  cur.idx = n; cur.blank = false;
+  renderSlide();
+}
+function restart(){
+  if(!cur) return;
+  cur.idx = 0; cur.blank = false;
+  renderSlide();
+  if(player && ytReady){
+    try{ player.seekTo(0, true); player.playVideo(); }catch(e){}
+  }
+}
+function renderSlide(){
+  var sl = cur.slides[cur.idx], nx = cur.slides[cur.idx+1];
+  var sc = $('#screen');
+  sc.className = 'screen' + (sl.kind === 'title' ? ' title' : '') + (cur.blank ? ' blank' : '');
+  $('#sLines').innerHTML = sl.lines.map(function(l){ return '<span class="ln">'+esc(l)+'</span>'; }).join('');
+  $('#sTag').textContent = cur.blank ? '검은 화면 (B)' : sl.label;
+  $('#sCnt').textContent = (cur.idx+1) + ' / ' + cur.slides.length;
+  var nb = $('#nextbox');
+  nb.className = 'nextbox' + (nx ? '' : ' end');
+  $('#nLines').innerHTML = nx
+    ? nx.lines.map(function(l){ return '<span class="ln">'+esc(l)+'</span>'; }).join('') + '<div class="lab" style="margin-top:4px">'+esc(nx.label)+'</div>'
+    : '<span class="ln">마지막 장입니다 · ↺ 다시하기</span>';
+  $('#parts').innerHTML = cur.parts.map(function(p, k){
+    var nextStart = cur.parts[k+1] ? cur.parts[k+1].index : cur.slides.length;
+    var on = cur.idx >= p.index && cur.idx < nextStart;
+    return '<button class="ghost'+(on ? ' on' : '')+'" data-jump="'+p.index+'">'+esc(p.label)+'</button>';
+  }).join('');
+  Array.prototype.forEach.call($('#parts').querySelectorAll('[data-jump]'), function(b){
+    b.addEventListener('click', function(){ go(+b.dataset.jump); });
+  });
+  $('#prev').disabled = cur.idx === 0;
+  $('#next').disabled = cur.idx >= cur.slides.length - 1;
+}
+
+$('#next').addEventListener('click', function(){ go(cur.idx+1); });
+$('#prev').addEventListener('click', function(){ go(cur.idx-1); });
+$('#screen').addEventListener('click', function(){ go(cur.idx+1); });
+$('#restart').addEventListener('click', restart);
+$('#back').addEventListener('click', endPractice);
+document.addEventListener('keydown', function(e){
+  if(!cur) return;
+  var tag = (e.target && e.target.tagName || '').toLowerCase();
+  if(tag === 'input' || tag === 'select' || tag === 'textarea') return;
+  if(e.key === ' ' || e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === 'Enter'){ e.preventDefault(); go(cur.idx+1); }
+  else if(e.key === 'ArrowLeft' || e.key === 'PageUp'){ e.preventDefault(); go(cur.idx-1); }
+  else if(e.key === 'b' || e.key === 'B' || e.key === '.'){ e.preventDefault(); cur.blank = !cur.blank; renderSlide(); }
+  else if(e.key === 'Home'){ e.preventDefault(); go(0); }
+  else if(e.key === 'r' || e.key === 'R'){ e.preventDefault(); restart(); }
+});
+
+PW3.load(function(err, s){
+  state = s;
+  setStatus(err ? '오프라인' : '준비됨', err ? 'err' : '');
+  loadArchive(renderPicker);
+});
+})();
+</script>
+</body>
+</html>

@@ -375,7 +375,8 @@ var MENU = [
   {href:'serve.html',      key:'serve',      label:'섬김'},
   {href:'schedule.html',   key:'schedule',   label:'일정'},
   {href:'attendance.html', key:'attendance', label:'출결부'},
-  {href:'resources.html',  key:'resources',  label:'자료실'}
+  {href:'resources.html',  key:'resources',  label:'자료실'},
+  {href:'practice.html',   key:'practice',   label:'연습'}
 ];
 function navHTML(active){
   var h = '<nav class="sitenav">';
