@@ -16,7 +16,7 @@
 <meta name="theme-color" content="#101014" media="(prefers-color-scheme: dark)">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
-<link rel="stylesheet" href="assets/site.css?v=20261108a">
+<link rel="stylesheet" href="assets/site.css?v=20261108b">
 </head>
 <body>
 <div id="app">
@@ -39,30 +39,48 @@
     <div id="songs" class="list plist"><div class="empty">불러오는 중…</div></div>
   </section>
 
+  <section class="card" id="arrCard" style="display:none">
+    <div class="row" style="justify-content:space-between;margin-bottom:6px">
+      <h2 style="margin:0" id="aTitle"></h2>
+      <button class="ghost" id="aBack">목록으로</button>
+    </div>
+    <div class="uphint" style="margin:0 0 12px">보관함에 적힌 파트를 눌러 오늘 부를 순서를 먼저 만듭니다. 같은 파트를 여러 번 넣을 수 있습니다.</div>
+    <div class="parts" id="aChips" style="margin-top:0"></div>
+    <div class="row" style="justify-content:space-between;margin-top:14px">
+      <span class="uphint" style="margin:0">배치 순서</span>
+      <div class="row">
+        <button class="ghost" id="aReset">보관함 배치로</button>
+        <button class="ghost" id="aClear">전체 지우기</button>
+      </div>
+    </div>
+    <div class="arrsteps" id="aSteps"></div>
+    <div class="uphint" id="aHint"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="primary" id="aGo" style="flex:1;padding:14px">이 배치로 연습 시작 ▶</button>
+    </div>
+  </section>
+
   <section class="card" id="playCard" style="display:none">
     <div class="row" style="justify-content:space-between;margin-bottom:12px">
       <h2 style="margin:0" id="pTitle"></h2>
       <div class="row">
         <button class="ghost" id="restart">↺ 다시하기</button>
+        <button class="ghost" id="toArr">배치 바꾸기</button>
         <button class="ghost" id="back">목록으로</button>
       </div>
     </div>
-    <div class="playgrid">
-      <div class="ytwrap" id="ytwrap"><div id="yt"></div></div>
-      <div>
-        <div class="screen" id="screen" title="눌러서 다음 장">
-          <span class="tag" id="sTag"></span><span class="cnt" id="sCnt"></span>
-          <div id="sLines"></div>
-        </div>
-        <div class="nextbox" id="nextbox"><div class="lab">다음</div><div id="nLines"></div></div>
-      </div>
+    <div class="ytwrap" id="ytwrap"><div id="yt"></div></div>
+    <div class="screen" id="screen" title="눌러서 다음 장">
+      <span class="tag" id="sTag"></span><span class="cnt" id="sCnt"></span>
+      <div id="sLines"></div>
     </div>
-    <div class="parts" id="parts"></div>
     <div class="ctl">
       <button id="prev">◀ 이전</button>
       <button class="primary" id="next">다음 ▶</button>
     </div>
-    <div class="keyhint">스페이스·→ 다음 장 · ← 이전 장 · B 검은 화면 · 화면을 눌러도 넘어갑니다</div>
+    <div class="keyhint">스페이스·→ 다음 장 · ← 이전 장 · B 검은 화면 · 화면을 눌러도 넘어갑니다 · 아래 목록을 눌러 바로 이동</div>
+    <div class="parts" id="parts"></div>
+    <div class="slidelist" id="slidelist"></div>
   </section>
 </div>
 
@@ -80,7 +98,7 @@ var CACHE_KEY = 'pw3-practice-lyrics';
 var state = PW3.normalize(null);
 var archive = [];                  /* 보관함 곡 (가사 포함) */
 var archiveErr = '';
-var cur = null;                    /* { title, slides, idx, blank, videoId } */
+var cur = null;                    /* { song, title, videoId, seq(파트 id 순서), slides, parts, idx, blank } */
 var player = null, ytReady = false, ytLoading = false;
 
 $('#nav').innerHTML = PW3.navHTML('practice');
@@ -208,30 +226,83 @@ function mountPlayer(videoId){
   });
 }
 
-/* ---------- 연습 ---------- */
+/* ---------- 1) 배치 만들기 ---------- */
+function show(card){
+  ['pickCard','arrCard','playCard'].forEach(function(id){ $('#'+id).style.display = id === card ? '' : 'none'; });
+  window.scrollTo({top:0});
+}
 function startPractice(sl, sg){
   var m = matchSong(sg.title);
   if(!m.song || !m.lyrics) return;
   cur = {
-    title: m.song.title,
-    slides: PW3SLIDES.build(m.song.lyrics, {perSlide:PER_SLIDE, title:m.song.title}),
-    idx: 0, blank: false,
-    videoId: PW3SLIDES.youtubeId(sg.url)
+    song: m.song, title: m.song.title,
+    videoId: PW3SLIDES.youtubeId(sg.url),
+    seq: PW3SLIDES.sequence(m.song.lyrics),     /* 보관함에 저장된 배치로 시작 */
+    slides: [], parts: [], idx: 0, blank: false
   };
+  $('#aTitle').textContent = cur.title;
+  renderArrange();
+  show('arrCard');
+}
+function secMap(){
+  var m = {};
+  (cur.song.lyrics.sections || []).forEach(function(s){ m[s.id] = s; });
+  return m;
+}
+function renderArrange(){
+  var map = secMap();
+  $('#aChips').innerHTML = (cur.song.lyrics.sections || []).map(function(s){
+    var n = PW3SLIDES.linesOf(s.text).length;
+    return '<button data-add="'+esc(s.id)+'"'+(n ? '' : ' disabled')+'>＋ '+esc(s.label)+(n ? '' : ' (가사 없음)')+'</button>';
+  }).join('');
+  $('#aSteps').innerHTML = cur.seq.length
+    ? cur.seq.map(function(id, i){
+        var s = map[id]; if(!s) return '';
+        return '<span class="step"><i>'+(i+1)+'</i>'+esc(s.label)+'<button data-del="'+i+'" aria-label="빼기">✕</button></span>';
+      }).join('')
+    : '<div class="empty" style="padding:6px 2px">위 파트를 눌러 순서를 만드세요.</div>';
+  var n = cur.seq.length ? PW3SLIDES.build(lyricsWith(cur.seq), {perSlide:PER_SLIDE, title:cur.title}).length : 0;
+  $('#aHint').textContent = cur.seq.length ? '제목 장 포함 ' + n + '장' : '';
+  $('#aGo').disabled = !cur.seq.length;
+  Array.prototype.forEach.call($('#aChips').querySelectorAll('[data-add]'), function(b){
+    b.addEventListener('click', function(){ cur.seq.push(b.dataset.add); renderArrange(); });
+  });
+  Array.prototype.forEach.call($('#aSteps').querySelectorAll('[data-del]'), function(b){
+    b.addEventListener('click', function(){ cur.seq.splice(+b.dataset.del, 1); renderArrange(); });
+  });
+}
+/* 보관함 가사에 오늘 만든 배치를 끼운 사본 */
+function lyricsWith(seq){
+  return { sections: cur.song.lyrics.sections, arrangement: seq };
+}
+$('#aReset').addEventListener('click', function(){ cur.seq = PW3SLIDES.sequence(cur.song.lyrics); renderArrange(); });
+$('#aClear').addEventListener('click', function(){ cur.seq = []; renderArrange(); });
+$('#aBack').addEventListener('click', endPractice);
+$('#aGo').addEventListener('click', beginPlay);
+$('#toArr').addEventListener('click', function(){
+  if(player){ try{ player.pauseVideo(); }catch(e){} }
+  renderArrange(); show('arrCard');
+});
+
+/* ---------- 2) 연습 ---------- */
+function beginPlay(){
+  if(!cur || !cur.seq.length) return;
+  cur.slides = PW3SLIDES.build(lyricsWith(cur.seq), {perSlide:PER_SLIDE, title:cur.title});
   cur.parts = PW3SLIDES.partStarts(cur.slides);
+  cur.idx = 0; cur.blank = false;
   $('#pTitle').textContent = cur.title;
-  $('#pickCard').style.display = 'none';
-  $('#playCard').style.display = '';
-  ytReady = false;
-  mountPlayer(cur.videoId);
+  show('playCard');
+  if(!player || cur.mountedVideo !== cur.videoId){
+    ytReady = false;
+    cur.mountedVideo = cur.videoId;
+    mountPlayer(cur.videoId);
+  }
   renderSlide();
-  window.scrollTo({top:0});
 }
 function endPractice(){
   cur = null;
   if(player){ try{ player.destroy(); }catch(e){} player = null; }
-  $('#playCard').style.display = 'none';
-  $('#pickCard').style.display = '';
+  show('pickCard');
 }
 function go(n){
   if(!cur) return;
@@ -248,17 +319,26 @@ function restart(){
   }
 }
 function renderSlide(){
-  var sl = cur.slides[cur.idx], nx = cur.slides[cur.idx+1];
+  var sl = cur.slides[cur.idx];
   var sc = $('#screen');
   sc.className = 'screen' + (sl.kind === 'title' ? ' title' : '') + (cur.blank ? ' blank' : '');
   $('#sLines').innerHTML = sl.lines.map(function(l){ return '<span class="ln">'+esc(l)+'</span>'; }).join('');
   $('#sTag').textContent = cur.blank ? '검은 화면 (B)' : sl.label;
   $('#sCnt').textContent = (cur.idx+1) + ' / ' + cur.slides.length;
-  var nb = $('#nextbox');
-  nb.className = 'nextbox' + (nx ? '' : ' end');
-  $('#nLines').innerHTML = nx
-    ? nx.lines.map(function(l){ return '<span class="ln">'+esc(l)+'</span>'; }).join('') + '<div class="lab" style="margin-top:4px">'+esc(nx.label)+'</div>'
-    : '<span class="ln">마지막 장입니다 · ↺ 다시하기</span>';
+  /* 전체 자막 목록: 현재 장 강조, 다음 장 표시, 누르면 이동 */
+  var list = $('#slidelist');
+  list.innerHTML = cur.slides.map(function(x, i){
+    var cls = 'sl' + (i === cur.idx ? ' on' : '') + (i === cur.idx+1 ? ' nx' : '') + (x.kind === 'title' ? ' ttl' : '');
+    return '<div class="'+cls+'" data-go="'+i+'">'+
+      '<div class="lab">'+(i+1)+' · '+esc(x.label)+(i === cur.idx ? ' · 현재' : (i === cur.idx+1 ? ' · 다음' : ''))+'</div>'+
+      x.lines.map(function(l){ return '<span class="ln">'+esc(l)+'</span>'; }).join('')+
+    '</div>';
+  }).join('');
+  Array.prototype.forEach.call(list.querySelectorAll('[data-go]'), function(el){
+    el.addEventListener('click', function(){ go(+el.dataset.go); });
+  });
+  var onEl = list.querySelector('.sl.on');
+  if(onEl && onEl.scrollIntoView) onEl.scrollIntoView({block:'nearest'});
   $('#parts').innerHTML = cur.parts.map(function(p, k){
     var nextStart = cur.parts[k+1] ? cur.parts[k+1].index : cur.slides.length;
     var on = cur.idx >= p.index && cur.idx < nextStart;
